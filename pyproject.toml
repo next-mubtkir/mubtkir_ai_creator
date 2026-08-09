@@ -1,0 +1,17 @@
+[project]
+name = "mubtkir_ai_creator"
+authors = [{ name = "MUBTKIR", email = "info@mubtkir.com" }]
+description = "Mubtkir AI Creator - منصة مركزية بالذكاء الاصطناعي لإدارة حسابات ERPNext للعملاء"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    "requests>=2.31.0",
+]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<16.0.0"

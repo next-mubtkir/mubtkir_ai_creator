@@ -8,6 +8,7 @@
   "llm_provider",
   "model",
   "base_url",
+  "heavy_model",
   "column_break_1",
   "api_key",
   "max_tokens",
@@ -16,7 +17,11 @@
   "require_approval_high",
   "column_break_2",
   "allow_cross_client_copy",
-  "request_timeout"
+  "request_timeout",
+  "attachments_section",
+  "max_rows_per_sheet",
+  "column_break_5",
+  "max_text_chars"
  ],
  "fields": [
   {
@@ -43,6 +48,12 @@
    "fieldtype": "Data",
    "label": "رابط مخصص (اختياري)",
    "description": "اتركه فارغًا للمزود الرسمي. للاستخدام مع LiteLLM أو نموذج مستضاف ذاتيًا"
+  },
+  {
+   "fieldname": "heavy_model",
+   "fieldtype": "Data",
+   "label": "نموذج المهام الثقيلة (اختياري)",
+   "description": "يُستخدم لتحليل ملفات الاستيراد والتلخيص. اتركه فارغًا لاستخدام النموذج الأساسي"
   },
   {
    "fieldname": "column_break_1",
@@ -92,6 +103,28 @@
    "fieldtype": "Int",
    "label": "مهلة الاتصال (ثانية)",
    "default": "60"
+  },
+  {
+   "fieldname": "attachments_section",
+   "fieldtype": "Section Break",
+   "label": "حدود قراءة المرفقات"
+  },
+  {
+   "fieldname": "max_rows_per_sheet",
+   "fieldtype": "Int",
+   "label": "أقصى عدد صفوف لكل ورقة",
+   "default": "200",
+   "description": "يخص مسار المحادثة فقط — أداة الاستيراد تعالج الملف كاملًا بلا هذا الحد"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_text_chars",
+   "fieldtype": "Int",
+   "label": "أقصى عدد أحرف لمحتوى الملف",
+   "default": "30000"
   }
  ],
  "issingle": 1,

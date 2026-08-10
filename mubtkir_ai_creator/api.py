@@ -31,10 +31,23 @@ def start_session(client_site, title=None):
 
 
 @frappe.whitelist()
-def send_message(session, message):
-    """إرسال رسالة للوكيل. الموقع المستهدف يُؤخذ من الجلسة وليس من نص الرسالة."""
+def send_message(session, message, attachments=None):
+    """إرسال رسالة للوكيل. الموقع المستهدف يُؤخذ من الجلسة وليس من نص الرسالة.
+
+    attachments: قائمة روابط ملفات (JSON string أو list) مرفوعة ومرتبطة بالجلسة.
+    """
+    import json as _json
+
     frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
-    return agent.run_turn(session, message)
+
+    file_urls = attachments
+    if isinstance(attachments, str):
+        try:
+            file_urls = _json.loads(attachments)
+        except ValueError:
+            file_urls = [attachments] if attachments else []
+
+    return agent.run_turn(session, message, file_urls=file_urls or None)
 
 
 @frappe.whitelist()

@@ -45,8 +45,13 @@ def needs_approval(risk):
 
 # ---------------- الحلقة الرئيسية ----------------
 
-def run_turn(session_name, user_message):
-    """دورة محادثة واحدة. تنفذ أدوات القراءة تلقائيًا، وتتوقف عند أول أداة تحتاج موافقة."""
+def run_turn(session_name, user_message, file_urls=None):
+    """دورة محادثة واحدة. تنفذ أدوات القراءة تلقائيًا، وتتوقف عند أول أداة تحتاج موافقة.
+
+    file_urls: مرفقات اختيارية (Excel/CSV/صور) تُحوَّل إلى كتل محتوى مع الرسالة.
+    """
+    from mubtkir_ai_creator.lib.attachments import build_user_content
+
     session = frappe.get_doc("AI Session", session_name)
     if session.status != "Open":
         frappe.throw("الجلسة مغلقة")
@@ -54,7 +59,8 @@ def run_turn(session_name, user_message):
     client_site = session.client_site  # الموقع مقفل على الجلسة
     client = FrappeSiteClient(client_site)
 
-    session.append_message("user", user_message)
+    content = build_user_content(user_message, file_urls)
+    session.append_message("user", content)
     messages = session.get_messages()
     tool_defs = tools.get_tool_definitions()
 

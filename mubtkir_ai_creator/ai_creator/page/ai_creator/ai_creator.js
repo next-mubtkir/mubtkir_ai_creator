@@ -26,7 +26,9 @@ class AICreator {
 					<span class="ai-status text-muted" style="font-size:12px;"></span>
 				</div>
 				<div class="ai-chat" style="border:1px solid var(--border-color);border-radius:8px;padding:12px;height:52vh;overflow-y:auto;background:var(--fg-color);"></div>
-				<div style="display:flex;gap:8px;margin-top:12px;">
+				<div class="ai-attachments" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
+				<div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;">
+					<button class="btn btn-default ai-attach" disabled title="إرفاق ملف Excel أو صورة">📎</button>
 					<textarea class="form-control ai-input" rows="2" placeholder="اكتب طلبك... مثال: أضف حقل مخصص باسم رقم العقد في فاتورة المبيعات" disabled></textarea>
 					<button class="btn btn-primary ai-send" disabled>إرسال</button>
 				</div>
@@ -38,6 +40,10 @@ class AICreator {
 		this.$input = this.page.main.find('.ai-input');
 		this.$status = this.page.main.find('.ai-status');
 
+		this.$attachments = this.page.main.find('.ai-attachments');
+		this.pending_files = [];
+
+		this.page.main.find('.ai-attach').on('click', () => this.pick_file());
 		this.page.main.find('.ai-start').on('click', () => this.start_session());
 		this.page.main.find('.ai-send').on('click', () => this.send());
 		this.$input.on('keydown', (e) => {
@@ -63,7 +69,7 @@ class AICreator {
 
 		this.$chat.empty();
 		this.$input.prop('disabled', false);
-		this.page.main.find('.ai-send').prop('disabled', false);
+		this.page.main.find('.ai-send, .ai-attach').prop('disabled', false);
 		this.$client.prop('disabled', true); // قفل الجلسة على الموقع
 		this.$status.text(`الجلسة ${this.session} — العميل ${this.client_site}`);
 		this.add_bubble('system', `بدأت الجلسة على حساب: ${this.client_site}`);
@@ -109,18 +115,64 @@ class AICreator {
 		this.$chat.scrollTop(this.$chat[0].scrollHeight);
 	}
 
+	pick_file() {
+		new frappe.ui.FileUploader({
+			doctype: 'AI Session',
+			docname: this.session,
+			folder: 'Home/Attachments',
+			restrictions: {
+				allowed_file_types: [
+					'.xlsx', '.xlsm', '.csv', '.txt', '.json', '.md',
+					'image/*',
+				],
+				max_file_size: 5 * 1024 * 1024,
+			},
+			on_success: (file_doc) => {
+				this.pending_files.push({ url: file_doc.file_url, name: file_doc.file_name });
+				this.render_attachments();
+			},
+		});
+	}
+
+	render_attachments() {
+		this.$attachments.empty();
+		this.pending_files.forEach((f, i) => {
+			const is_img = /\.(png|jpe?g|gif|webp)$/i.test(f.name || '');
+			const $chip = $(`
+				<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border-color);border-radius:14px;font-size:12px;">
+					${is_img ? '🖼️' : '📄'} ${frappe.utils.escape_html(f.name)}
+					<a href="#" class="ai-rm" style="color:var(--text-muted);">✕</a>
+				</span>
+			`);
+			$chip.find('.ai-rm').on('click', (e) => {
+				e.preventDefault();
+				this.pending_files.splice(i, 1);
+				this.render_attachments();
+			});
+			this.$attachments.append($chip);
+		});
+	}
+
 	async send() {
 		const msg = (this.$input.val() || '').trim();
-		if (!msg || !this.session) return;
+		if ((!msg && !this.pending_files.length) || !this.session) return;
 
-		this.add_bubble('user', frappe.utils.escape_html(msg));
+		const files = this.pending_files.slice();
+		const files_note = files.length
+			? `\n\n📎 مرفقات: ${files.map((f) => f.name).join('، ')}`
+			: '';
+
+		this.add_bubble('user', frappe.utils.escape_html(msg + files_note));
 		this.$input.val('');
+		this.pending_files = [];
+		this.render_attachments();
 		this.$status.text('جارٍ المعالجة...');
 
 		try {
 			const r = await frappe.call('mubtkir_ai_creator.api.send_message', {
 				session: this.session,
-				message: msg,
+				message: msg || 'راجع المرفقات ووضّح ما تفهمه منها',
+				attachments: JSON.stringify(files.map((f) => f.url)),
 			});
 			this.handle_response(r.message);
 		} catch (e) {

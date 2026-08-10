@@ -19,4 +19,13 @@ def get_llm_config():
         "api_key": key,
         "max_tokens": doc.max_tokens or 4096,
         "timeout": doc.request_timeout or 60,
+        "heavy_model": doc.heavy_model,
+    }
+
+
+def get_attachment_limits():
+    doc = frappe.get_single("AI Settings")
+    return {
+        "max_rows": doc.max_rows_per_sheet or 200,
+        "max_chars": doc.max_text_chars or 30000,
     }

@@ -9,6 +9,12 @@ class AIClientSite(Document):
             if not self.site_url.startswith("https://"):
                 frappe.throw("رابط الموقع يجب أن يبدأ بـ https:// فقط")
 
+    def before_save(self):
+        self.credentials_ready = 1 if (
+            self.get_password("api_key", raise_exception=False)
+            and self.get_password("api_secret", raise_exception=False)
+        ) else 0
+
     def get_credentials(self):
         """إرجاع بيانات الاتصال بعد فك التشفير. لا تُعاد أبدًا للواجهة أو للنموذج."""
         return {

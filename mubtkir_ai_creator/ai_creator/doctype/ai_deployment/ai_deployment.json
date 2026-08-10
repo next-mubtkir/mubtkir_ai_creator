@@ -1,0 +1,251 @@
+{
+ "actions": [],
+ "autoname": "format:DEP-{YY}{MM}-{#####}",
+ "creation": "2026-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "deployment_type",
+  "column_break_1",
+  "status",
+  "overwrite_existing",
+  "source_section",
+  "source_mode",
+  "source_client",
+  "source_record",
+  "source_template",
+  "column_break_2",
+  "target_doctype",
+  "manual_payload",
+  "payload_section",
+  "resolved_payload",
+  "targets_section",
+  "targets",
+  "preview_section",
+  "preview_summary",
+  "approval_section",
+  "approved_by",
+  "column_break_3",
+  "approved_on",
+  "result_section",
+  "total_targets",
+  "success_count",
+  "column_break_4",
+  "failed_count",
+  "skipped_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "عنوان النشر",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "deployment_type",
+   "fieldtype": "Select",
+   "label": "نوع العملية",
+   "options": "Print Format\nCustom Field\nSettings",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "الحالة",
+   "options": "Draft\nPreviewed\nPending Approval\nApproved\nExecuting\nCompleted\nPartially Failed\nFailed",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "overwrite_existing",
+   "fieldtype": "Check",
+   "label": "استبدال الموجود عند التعارض",
+   "default": "0",
+   "description": "إن كان العنصر موجودًا لدى العميل: مفعّل = يُستبدل، غير مفعّل = يُتخطى"
+  },
+  {
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "المصدر"
+  },
+  {
+   "fieldname": "source_mode",
+   "fieldtype": "Select",
+   "label": "طريقة التعريف",
+   "options": "نسخ من عميل\nتعريف يدوي\nمن قالب",
+   "default": "نسخ من عميل",
+   "reqd": 1
+  },
+  {
+   "fieldname": "source_client",
+   "fieldtype": "Link",
+   "label": "العميل المصدر",
+   "options": "AI Client Site",
+   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "mandatory_depends_on": "eval:doc.source_mode=='نسخ من عميل'"
+  },
+  {
+   "fieldname": "source_record",
+   "fieldtype": "Data",
+   "label": "اسم العنصر لدى المصدر",
+   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "description": "اسم Print Format، أو اسم Custom Field، أو اسم DocType الإعدادات",
+   "mandatory_depends_on": ""
+  },
+  {
+   "fieldname": "source_template",
+   "fieldtype": "Link",
+   "label": "القالب",
+   "options": "AI Template",
+   "depends_on": "eval:doc.source_mode=='من قالب'",
+   "mandatory_depends_on": "eval:doc.source_mode=='من قالب'"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Data",
+   "label": "الـ DocType المستهدف",
+   "description": "لـ Custom Field: الـ DocType المضاف إليه. لـ Settings: اسم DocType الإعدادات مثل Stock Settings"
+  },
+  {
+   "fieldname": "manual_payload",
+   "fieldtype": "Code",
+   "label": "التعريف اليدوي (JSON)",
+   "options": "JSON",
+   "depends_on": "eval:doc.source_mode=='تعريف يدوي'",
+   "mandatory_depends_on": "eval:doc.source_mode=='تعريف يدوي'"
+  },
+  {
+   "fieldname": "payload_section",
+   "fieldtype": "Section Break",
+   "label": "البيانات النهائية"
+  },
+  {
+   "fieldname": "resolved_payload",
+   "fieldtype": "Code",
+   "label": "ما سيُطبَّق فعليًا",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "targets_section",
+   "fieldtype": "Section Break",
+   "label": "العملاء المستهدفون (بحد أقصى 10)"
+  },
+  {
+   "fieldname": "targets",
+   "fieldtype": "Table",
+   "label": "الأهداف",
+   "options": "AI Deployment Target",
+   "reqd": 1
+  },
+  {
+   "fieldname": "preview_section",
+   "fieldtype": "Section Break",
+   "label": "المعاينة"
+  },
+  {
+   "fieldname": "preview_summary",
+   "fieldtype": "Small Text",
+   "label": "ملخص المعاينة",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "الاعتماد"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "اعتمدها",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_on",
+   "fieldtype": "Datetime",
+   "label": "تاريخ الاعتماد",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "النتيجة"
+  },
+  {
+   "fieldname": "total_targets",
+   "fieldtype": "Int",
+   "label": "إجمالي الأهداف",
+   "read_only": 1
+  },
+  {
+   "fieldname": "success_count",
+   "fieldtype": "Int",
+   "label": "نجحت",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "failed_count",
+   "fieldtype": "Int",
+   "label": "فشلت",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skipped_count",
+   "fieldtype": "Int",
+   "label": "تُخطّيت",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-01-01 00:00:00.000000",
+ "module": "AI Creator",
+ "name": "AI Deployment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "AI Creator User"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "AI Creator Supervisor"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "title",
+ "track_changes": 1
+}

@@ -49,3 +49,79 @@ frappe.ui.form.on('AI Client Site', {
 		);
 	},
 });
+
+// أزرار الالتقاط داخل نموذج العميل
+frappe.ui.form.on('AI Client Site', {
+	onload_post_render: function (frm) {
+		if (frm.is_new()) return;
+
+		frm.add_custom_button(__('التقاط تخصيص'), function () {
+			const d = new frappe.ui.Dialog({
+				title: __('التقاط تخصيص من هذا العميل'),
+				fields: [
+					{
+						fieldname: 'artifact_type',
+						label: __('النوع'),
+						fieldtype: 'Select',
+						options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script',
+						reqd: 1,
+						default: 'Print Format',
+					},
+					{ fieldname: 'target_doctype', label: __('حصر بـ DocType (اختياري)'), fieldtype: 'Data' },
+					{ fieldname: 'load', label: __('استعراض المتاح'), fieldtype: 'Button' },
+					{ fieldname: 'results', fieldtype: 'HTML' },
+				],
+			});
+
+			d.fields_dict.load.$input.on('click', function () {
+				frappe.call({
+					method: 'mubtkir_ai_creator.lib.templates.run_list_available',
+					args: {
+						client_site: frm.doc.name,
+						artifact_type: d.get_value('artifact_type'),
+						target_doctype: d.get_value('target_doctype') || null,
+					},
+					freeze: true,
+					callback: function (r) {
+						const rows = r.message || [];
+						if (!rows.length) {
+							d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا النوع</div>');
+							return;
+						}
+						const $list = $('<div dir="rtl" style="max-height:300px;overflow:auto;"></div>');
+						rows.forEach((row) => {
+							const $item = $(`
+								<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);">
+									<span>${frappe.utils.escape_html(row.name)}</span>
+									<button class="btn btn-xs btn-default">التقاط</button>
+								</div>
+							`);
+							$item.find('button').on('click', function () {
+								frappe.call({
+									method: 'mubtkir_ai_creator.lib.templates.run_capture',
+									args: {
+										client_site: frm.doc.name,
+										artifact_type: d.get_value('artifact_type'),
+										source_name: row.name,
+									},
+									freeze: true,
+									callback: function (res) {
+										const m = res.message || {};
+										frappe.show_alert(
+											{ message: __('تم الالتقاط — النسخة {0}', [m.version]), indicator: 'green' },
+											5
+										);
+									},
+								});
+							});
+							$list.append($item);
+						});
+						d.fields_dict.results.$wrapper.empty().append($list);
+					},
+				});
+			});
+
+			d.show();
+		});
+	},
+});

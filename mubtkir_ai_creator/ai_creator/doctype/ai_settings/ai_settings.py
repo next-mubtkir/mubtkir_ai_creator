@@ -15,6 +15,7 @@ def get_llm_config():
     return {
         "provider": doc.llm_provider or "Anthropic",
         "model": doc.model,
+        "base_url": doc.base_url,
         "api_key": key,
         "max_tokens": doc.max_tokens or 4096,
         "timeout": doc.request_timeout or 60,

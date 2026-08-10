@@ -69,16 +69,43 @@ class AICreator {
 		this.add_bubble('system', `بدأت الجلسة على حساب: ${this.client_site}`);
 	}
 
-	add_bubble(role, html) {
+	decode_unicode(txt) {
+		if (!txt) return '';
+		try {
+			return String(txt).replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
+				String.fromCharCode(parseInt(h, 16))
+			);
+		} catch (e) {
+			return String(txt);
+		}
+	}
+
+	add_bubble(role, html, raw_text) {
 		const styles = {
 			user: 'background:var(--bg-blue);margin-inline-start:auto;',
 			assistant: 'background:var(--bg-light-gray);',
 			system: 'background:transparent;color:var(--text-muted);font-size:12px;text-align:center;',
 			error: 'background:var(--bg-red);',
 		};
-		this.$chat.append(
-			`<div style="max-width:80%;padding:10px 12px;border-radius:8px;margin-bottom:10px;white-space:pre-wrap;${styles[role] || ''}">${html}</div>`
+
+		const $bubble = $(
+			`<div style="position:relative;max-width:80%;padding:10px 12px;border-radius:8px;margin-bottom:10px;white-space:pre-wrap;${
+				styles[role] || ''
+			}"></div>`
 		);
+		$bubble.append(`<div class="ai-bubble-body">${html}</div>`);
+
+		if (role !== 'system') {
+			const text = raw_text !== undefined ? raw_text : $('<div>').html(html).text();
+			const $btn = $('<button class="btn btn-xs btn-default" style="margin-top:8px;">📋 نسخ</button>');
+			$btn.on('click', () => {
+				frappe.utils.copy_to_clipboard(this.decode_unicode(text));
+				frappe.show_alert({ message: __('تم النسخ'), indicator: 'green' }, 3);
+			});
+			$bubble.append($btn);
+		}
+
+		this.$chat.append($bubble);
 		this.$chat.scrollTop(this.$chat[0].scrollHeight);
 	}
 
@@ -133,10 +160,14 @@ class AICreator {
 		this.$status.text('جارٍ التنفيذ...');
 		const r = await frappe.call('mubtkir_ai_creator.ai_creator.doctype.ai_task.ai_task.approve', { name: task });
 		const out = r.message || {};
-		this.add_bubble(
-			out.status === 'Completed' ? 'assistant' : 'error',
-			`نتيجة التنفيذ: ${frappe.utils.escape_html(out.status || '')}\n\nالتحقق:\n${frappe.utils.escape_html(JSON.stringify(out.verification, null, 2))}`
-		);
+
+		if (out.status === 'Completed') {
+			const v = JSON.stringify(out.verification, null, 2);
+			this.add_bubble('assistant', `✅ تم التنفيذ بنجاح\n\nالتحقق:\n${frappe.utils.escape_html(v)}`, v);
+		} else {
+			const err = this.decode_unicode(out.error || 'غير محدد — راجع AI Action Log');
+			this.add_bubble('error', `❌ فشل التنفيذ\n\nسبب الفشل:\n${frappe.utils.escape_html(err)}`, err);
+		}
 	}
 
 	async reject(task, $box) {

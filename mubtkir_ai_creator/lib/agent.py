@@ -126,10 +126,107 @@ def _create_pending_task(session, client_site, request_text, plan, calls):
     return task
 
 
+WRITE_TOOLS_WITH_LINKS = ("create_document", "update_document")
+
+
+def _mandatory_required_check(client, call):
+    """بوابة إلزامية: لا يُنشأ مستند وحقوله الإجبارية ناقصة.
+
+    بدل ترك ERPNext يرفض العملية برسالة تقنية، نوقفها مبكرًا ونعيد للمستخدم
+    قائمة عربية بالحقول المطلوبة مع القيم المتاحة لحقول الربط.
+    """
+    if call["name"] != "create_document":
+        return None
+
+    args = call.get("input") or {}
+    doctype = args.get("doctype")
+    data = args.get("data")
+    if not doctype or not isinstance(data, dict):
+        return None
+
+    try:
+        result = tools.find_missing_required(client, doctype, data)
+    except Exception as e:
+        return f"تعذّر التحقق من الحقول الإجبارية قبل التنفيذ: {str(e)[:300]}"
+
+    if result.get("is_complete"):
+        return None
+
+    lines = [f"أُلغيت العملية قبل التنفيذ: حقول إجبارية ناقصة في «{doctype}».", ""]
+    for f in result["missing_required"]:
+        label = f.get("label") or f.get("fieldname")
+        line = f"- {label} ({f.get('fieldname')}) — النوع: {f.get('fieldtype')}"
+        if f.get("link_to"):
+            opts = f.get("available_options") or []
+            line += f"، مرتبط بـ {f['link_to']}"
+            if opts:
+                line += f"\n  القيم المتاحة: {'، '.join(map(str, opts[:15]))}"
+        elif f.get("select_options"):
+            line += f"\n  الخيارات: {'، '.join(map(str, [o for o in f['select_options'] if o][:15]))}"
+        lines.append(line)
+
+    lines.append("")
+    lines.append("أرسل قيم هذه الحقول ثم أعد المحاولة.")
+    return "\n".join(lines)
+
+
+def _mandatory_link_check(client, call):
+    """فحص إلزامي في الكود لحقول الربط قبل أي كتابة.
+
+    لا يعتمد على التزام النموذج بالتعليمات: إن كانت أي قيمة ربط غير موجودة
+    لدى العميل، تُلغى العملية قبل إرسالها ويُعاد سبب واضح مع البدائل المتاحة.
+    """
+    if call["name"] not in WRITE_TOOLS_WITH_LINKS:
+        return None
+
+    args = call.get("input") or {}
+    doctype = args.get("doctype")
+    data = args.get("data")
+    if not doctype or not isinstance(data, dict):
+        return None
+
+    try:
+        result = tools.check_links(client, doctype, data)
+    except Exception as e:
+        # تعذّر الفحص لا يعني السماح: نوقف العملية بدل المخاطرة بكتابة خاطئة
+        return f"تعذّر التحقق من حقول الربط قبل التنفيذ: {str(e)[:300]}"
+
+    if result.get("all_valid"):
+        return None
+
+    lines = ["أُلغيت العملية قبل التنفيذ: قيم حقول ربط غير موجودة لدى العميل."]
+    for field, info in (result.get("invalid_fields") or {}).items():
+        opts = info.get("available_options") or []
+        lines.append(
+            f"- الحقل «{field}» (يرتبط بـ {info.get('doctype')}): القيمة المرسلة «{info.get('value')}» غير موجودة."
+            + (f" القيم المتاحة: {'، '.join(map(str, opts[:15]))}" if opts else " لا توجد قيم متاحة.")
+        )
+    lines.append("صحّح القيم من القائمة أعلاه ثم أعد المحاولة.")
+    return "\n".join(lines)
+
+
 def _execute_call(client, client_site, session_name, task_name, call):
     start = time.time()
     risk = tools.get_risk(call["name"])
     before = None
+
+    # بوابات إلزامية: الحقول الإجبارية أولًا، ثم صحة حقول الربط
+    blocked = _mandatory_required_check(client, call) or _mandatory_link_check(client, call)
+    if blocked:
+        log_action(
+            client_site=client_site,
+            site_url=client.site_url,
+            session=session_name,
+            task=task_name,
+            tool_name=call["name"],
+            risk_level=risk,
+            tool_input=_dump(call.get("input") or {}),
+            tool_output=None,
+            is_success=0,
+            duration_ms=int((time.time() - start) * 1000),
+            error_message=blocked[:1000],
+        )
+        return {"error": blocked}
 
     # لقطة قبل التعديل للعمليات القابلة للاسترجاع
     args = call.get("input") or {}
@@ -189,14 +286,27 @@ def execute_task(task_name):
 
     task.db_set("execution_result", _dump(results))
 
+    # استخراج نص الخطأ الفعلي لعرضه في الواجهة
+    error_text = None
+    for r in results:
+        res = r.get("result")
+        if isinstance(res, dict) and res.get("error"):
+            error_text = f"[{r.get('tool')}] {res['error']}"
+            break
+
     verification = verify_task(client, calls, results)
     task.db_set("verification_result", _dump(verification))
     task.db_set("status", "Failed" if failed else "Completed")
     if failed:
-        task.db_set("error_message", "توقف التنفيذ عند أول خطأ — راجع سجل التدقيق")
+        task.db_set("error_message", (error_text or "فشل غير محدد")[:1000])
 
     frappe.db.commit()
-    return {"status": task.status, "results": results, "verification": verification}
+    return {
+        "status": task.status,
+        "results": results,
+        "verification": verification,
+        "error": error_text,
+    }
 
 
 def verify_task(client, calls, results):

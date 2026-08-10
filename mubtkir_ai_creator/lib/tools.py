@@ -144,6 +144,158 @@ def diagnose_permissions(client, user, doctype):
     return {"user": user, "roles": roles, "doctype": doctype, "permissions": perms}
 
 
+@tool(
+    "list_link_options",
+    "low",
+    "عرض القيم المتاحة فعليًا لحقل ربط (Link) لدى العميل. استخدمها إلزاميًا قبل أي إنشاء أو تعديل يحتوي حقل ربط",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string", "description": "الـ DocType المرتبط، مثل Item Group أو UOM أو Warehouse"},
+            "search": {"type": "string", "description": "نص بحث اختياري"},
+            "limit": {"type": "integer", "default": 20},
+        },
+        "required": ["doctype"],
+    },
+)
+def list_link_options(client, doctype, search=None, limit=20):
+    filters = {"name": ["like", f"%{search}%"]} if search else None
+    rows = client.get_list(
+        doctype, fields=["name"], filters=filters, limit=min(limit or 20, 50)
+    ).get("data") or []
+    return {"doctype": doctype, "count": len(rows), "options": [r.get("name") for r in rows]}
+
+
+@tool(
+    "validate_links",
+    "low",
+    "التحقق من أن كل قيم حقول الربط في بيانات مقترحة موجودة فعلًا لدى العميل قبل الكتابة",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string", "description": "الـ DocType المستهدف"},
+            "data": {"type": "object", "description": "البيانات المقترحة كما ستُرسل"},
+        },
+        "required": ["doctype", "data"],
+    },
+)
+def validate_links(client, doctype, data):
+    return check_links(client, doctype, data)
+
+
+def check_links(client, doctype, data):
+    """الفحص الفعلي لحقول الربط — يُستدعى كأداة ومن طبقة التنفيذ الإلزامية معًا."""
+    meta = client.get_meta(doctype).get("data", {}) or {}
+    link_fields = {
+        f.get("fieldname"): f.get("options")
+        for f in meta.get("fields", [])
+        if f.get("fieldtype") == "Link" and f.get("options")
+    }
+
+    valid, invalid = {}, {}
+    for fieldname, value in (data or {}).items():
+        target = link_fields.get(fieldname)
+        if not target or not value or not isinstance(value, str):
+            continue
+        try:
+            rows = client.get_list(
+                target, fields=["name"], filters={"name": value}, limit=1
+            ).get("data") or []
+        except Exception as e:
+            invalid[fieldname] = {"value": value, "doctype": target, "error": str(e)[:200]}
+            continue
+
+        if rows:
+            valid[fieldname] = value
+        else:
+            try:
+                available = client.get_list(target, fields=["name"], limit=15).get("data") or []
+            except Exception:
+                available = []
+            invalid[fieldname] = {
+                "value": value,
+                "doctype": target,
+                "available_options": [r.get("name") for r in available],
+            }
+
+    return {
+        "doctype": doctype,
+        "all_valid": not invalid,
+        "valid_fields": valid,
+        "invalid_fields": invalid,
+    }
+
+
+@tool(
+    "get_required_fields",
+    "low",
+    "معرفة الحقول الإجبارية لـ DocType لدى العميل قبل الإنشاء، مع القيم المتاحة لحقول الربط الإجبارية",
+    {
+        "type": "object",
+        "properties": {"doctype": {"type": "string"}},
+        "required": ["doctype"],
+    },
+)
+def get_required_fields(client, doctype):
+    return describe_required(client, doctype)
+
+
+def describe_required(client, doctype, with_options=True):
+    """استخراج الحقول الإجبارية مع نوعها وقيمها المتاحة — يُستخدم كأداة ومن بوابة التنفيذ."""
+    meta = client.get_meta(doctype).get("data", {}) or {}
+
+    required, conditional = [], []
+    for f in meta.get("fields", []):
+        if f.get("fieldtype") in ("Section Break", "Column Break", "Tab Break", "HTML"):
+            continue
+
+        info = {
+            "fieldname": f.get("fieldname"),
+            "label": f.get("label"),
+            "fieldtype": f.get("fieldtype"),
+            "link_to": f.get("options") if f.get("fieldtype") == "Link" else None,
+            "select_options": (f.get("options") or "").split("\n") if f.get("fieldtype") == "Select" else None,
+            "default": f.get("default"),
+        }
+
+        if f.get("reqd"):
+            if with_options and info["link_to"]:
+                try:
+                    rows = client.get_list(info["link_to"], fields=["name"], limit=15).get("data") or []
+                    info["available_options"] = [r.get("name") for r in rows]
+                except Exception:
+                    info["available_options"] = []
+            required.append(info)
+        elif f.get("mandatory_depends_on"):
+            info["mandatory_depends_on"] = f.get("mandatory_depends_on")
+            conditional.append(info)
+
+    return {
+        "doctype": doctype,
+        "required_fields": required,
+        "conditionally_required_fields": conditional,
+        "note": "الحقول التي لها default قد تُملأ تلقائيًا، لكن يُفضّل تأكيدها مع المستخدم",
+    }
+
+
+def find_missing_required(client, doctype, data):
+    """إرجاع الحقول الإجبارية الناقصة في بيانات مقترحة (تتجاهل ما له قيمة افتراضية)."""
+    spec = describe_required(client, doctype, with_options=True)
+    data = data or {}
+
+    missing = []
+    for f in spec["required_fields"]:
+        fieldname = f["fieldname"]
+        value = data.get(fieldname)
+        if value not in (None, "", []):
+            continue
+        if f.get("default"):
+            continue  # سيُملأ تلقائيًا من القيمة الافتراضية
+        missing.append(f)
+
+    return {"doctype": doctype, "missing_required": missing, "is_complete": not missing}
+
+
 # ---------------- أدوات الكتابة (Medium) ----------------
 
 @tool(

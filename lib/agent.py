@@ -1,0 +1,348 @@
+"""دورة عمل الوكيل: Understand → Inspect → Plan → Risk → Approval → Execute → Verify → Log."""
+
+import json
+import time
+
+import frappe
+from frappe.utils import now_datetime
+
+from mubtkir_ai_creator.lib import llm, tools
+from mubtkir_ai_creator.lib.client import FrappeSiteClient
+
+MAX_ITERATIONS = 8
+
+
+# ---------------- سجل التدقيق ----------------
+
+def log_action(**kwargs):
+    doc = frappe.get_doc({
+        "doctype": "AI Action Log",
+        "timestamp": now_datetime(),
+        "log_user": frappe.session.user,
+        **kwargs,
+    })
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return doc.name
+
+
+def _dump(value):
+    try:
+        return json.dumps(value, ensure_ascii=False, default=str)[:20000]
+    except Exception:
+        return str(value)[:20000]
+
+
+# ---------------- تقييم الخطورة ----------------
+
+def needs_approval(risk):
+    if risk == "low":
+        return False
+    if risk == "high":
+        return True
+    return bool(frappe.db.get_single_value("AI Settings", "require_approval_medium"))
+
+
+# ---------------- الحلقة الرئيسية ----------------
+
+def run_turn(session_name, user_message, file_urls=None):
+    """دورة محادثة واحدة. تنفذ أدوات القراءة تلقائيًا، وتتوقف عند أول أداة تحتاج موافقة.
+
+    file_urls: مرفقات اختيارية (Excel/CSV/صور) تُحوَّل إلى كتل محتوى مع الرسالة.
+    """
+    from mubtkir_ai_creator.lib.attachments import build_user_content
+
+    session = frappe.get_doc("AI Session", session_name)
+    if session.status != "Open":
+        frappe.throw("الجلسة مغلقة")
+
+    client_site = session.client_site  # الموقع مقفل على الجلسة
+    client = FrappeSiteClient(client_site)
+
+    content = build_user_content(user_message, file_urls)
+    session.append_message("user", content)
+    messages = session.get_messages()
+    tool_defs = tools.get_tool_definitions()
+
+    for _ in range(MAX_ITERATIONS):
+        result = llm.chat(messages, tools=tool_defs)
+
+        if not result["tool_calls"]:
+            session.append_message("assistant", result["text"])
+            return {"type": "message", "text": result["text"]}
+
+        # فحص الخطورة قبل أي تنفيذ
+        pending = [c for c in result["tool_calls"] if needs_approval(tools.get_risk(c["name"]))]
+
+        if pending:
+            task = _create_pending_task(
+                session, client_site, user_message, result["text"], result["tool_calls"]
+            )
+            session.append_message("assistant", result["text"])
+            return {
+                "type": "approval_required",
+                "task": task.name,
+                "plan": result["text"],
+                "risk_level": task.risk_level,
+                "calls": result["tool_calls"],
+            }
+
+        # كل الأدوات منخفضة الخطورة: تنفيذ مباشر
+        assistant_blocks = []
+        if result["text"]:
+            assistant_blocks.append({"type": "text", "text": result["text"]})
+        tool_results = []
+
+        for call in result["tool_calls"]:
+            output = _execute_call(client, client_site, session.name, None, call)
+            assistant_blocks.append(
+                {"type": "tool_use", "id": call["id"], "name": call["name"], "input": call["input"]}
+            )
+            tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": call["id"],
+                    "content": _dump(output)[:8000],
+                }
+            )
+
+        messages.append({"role": "assistant", "content": assistant_blocks})
+        messages.append({"role": "user", "content": tool_results})
+
+    return {"type": "message", "text": "تم بلوغ الحد الأقصى لعدد الخطوات دون الوصول لنتيجة نهائية."}
+
+
+def _create_pending_task(session, client_site, request_text, plan, calls):
+    risks = [tools.get_risk(c["name"]) for c in calls]
+    level = "High" if "high" in risks else ("Medium" if "medium" in risks else "Low")
+
+    task = frappe.get_doc({
+        "doctype": "AI Task",
+        "session": session.name,
+        "client_site": client_site,
+        "request_text": request_text,
+        "plan": plan,
+        "planned_calls": json.dumps(calls, ensure_ascii=False, indent=2),
+        "risk_level": level,
+        "approval_required": 1,
+        "status": "Pending Approval",
+    })
+    task.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return task
+
+
+WRITE_TOOLS_WITH_LINKS = ("create_document", "update_document")
+
+
+def _mandatory_required_check(client, call):
+    """بوابة إلزامية: لا يُنشأ مستند وحقوله الإجبارية ناقصة.
+
+    بدل ترك ERPNext يرفض العملية برسالة تقنية، نوقفها مبكرًا ونعيد للمستخدم
+    قائمة عربية بالحقول المطلوبة مع القيم المتاحة لحقول الربط.
+    """
+    if call["name"] != "create_document":
+        return None
+
+    args = call.get("input") or {}
+    doctype = args.get("doctype")
+    data = args.get("data")
+    if not doctype or not isinstance(data, dict):
+        return None
+
+    try:
+        result = tools.find_missing_required(client, doctype, data)
+    except Exception as e:
+        return f"تعذّر التحقق من الحقول الإجبارية قبل التنفيذ: {str(e)[:300]}"
+
+    if result.get("is_complete"):
+        return None
+
+    lines = [f"أُلغيت العملية قبل التنفيذ: حقول إجبارية ناقصة في «{doctype}».", ""]
+    for f in result["missing_required"]:
+        label = f.get("label") or f.get("fieldname")
+        line = f"- {label} ({f.get('fieldname')}) — النوع: {f.get('fieldtype')}"
+        if f.get("link_to"):
+            opts = f.get("available_options") or []
+            line += f"، مرتبط بـ {f['link_to']}"
+            if opts:
+                line += f"\n  القيم المتاحة: {'، '.join(map(str, opts[:15]))}"
+        elif f.get("select_options"):
+            line += f"\n  الخيارات: {'، '.join(map(str, [o for o in f['select_options'] if o][:15]))}"
+        lines.append(line)
+
+    lines.append("")
+    lines.append("أرسل قيم هذه الحقول ثم أعد المحاولة.")
+    return "\n".join(lines)
+
+
+def _mandatory_link_check(client, call):
+    """فحص إلزامي في الكود لحقول الربط قبل أي كتابة.
+
+    لا يعتمد على التزام النموذج بالتعليمات: إن كانت أي قيمة ربط غير موجودة
+    لدى العميل، تُلغى العملية قبل إرسالها ويُعاد سبب واضح مع البدائل المتاحة.
+    """
+    if call["name"] not in WRITE_TOOLS_WITH_LINKS:
+        return None
+
+    args = call.get("input") or {}
+    doctype = args.get("doctype")
+    data = args.get("data")
+    if not doctype or not isinstance(data, dict):
+        return None
+
+    try:
+        result = tools.check_links(client, doctype, data)
+    except Exception as e:
+        # تعذّر الفحص لا يعني السماح: نوقف العملية بدل المخاطرة بكتابة خاطئة
+        return f"تعذّر التحقق من حقول الربط قبل التنفيذ: {str(e)[:300]}"
+
+    if result.get("all_valid"):
+        return None
+
+    lines = ["أُلغيت العملية قبل التنفيذ: قيم حقول ربط غير موجودة لدى العميل."]
+    for field, info in (result.get("invalid_fields") or {}).items():
+        opts = info.get("available_options") or []
+        lines.append(
+            f"- الحقل «{field}» (يرتبط بـ {info.get('doctype')}): القيمة المرسلة «{info.get('value')}» غير موجودة."
+            + (f" القيم المتاحة: {'، '.join(map(str, opts[:15]))}" if opts else " لا توجد قيم متاحة.")
+        )
+    lines.append("صحّح القيم من القائمة أعلاه ثم أعد المحاولة.")
+    return "\n".join(lines)
+
+
+def _execute_call(client, client_site, session_name, task_name, call):
+    start = time.time()
+    risk = tools.get_risk(call["name"])
+    before = None
+
+    # بوابات إلزامية: الحقول الإجبارية أولًا، ثم صحة حقول الربط
+    blocked = _mandatory_required_check(client, call) or _mandatory_link_check(client, call)
+    if blocked:
+        log_action(
+            client_site=client_site,
+            site_url=client.site_url,
+            session=session_name,
+            task=task_name,
+            tool_name=call["name"],
+            risk_level=risk,
+            tool_input=_dump(call.get("input") or {}),
+            tool_output=None,
+            is_success=0,
+            duration_ms=int((time.time() - start) * 1000),
+            error_message=blocked[:1000],
+        )
+        return {"error": blocked}
+
+    # لقطة قبل التعديل للعمليات القابلة للاسترجاع
+    args = call.get("input") or {}
+    if call["name"] in ("update_document", "update_print_format", "submit_document", "cancel_document", "delete_document"):
+        try:
+            dt = args.get("doctype") or "Print Format"
+            nm = args.get("name")
+            if nm:
+                before = client.get_doc(dt, nm).get("data")
+        except Exception:
+            before = None
+
+    try:
+        output = tools.run_tool(client, call["name"], args)
+        success, error = 1, None
+    except Exception as e:
+        output, success, error = None, 0, str(e)[:1000]
+
+    log_action(
+        client_site=client_site,
+        site_url=client.site_url,
+        session=session_name,
+        task=task_name,
+        tool_name=call["name"],
+        risk_level=risk,
+        tool_input=_dump(args),
+        tool_output=_dump(output),
+        value_before=_dump(before) if before else None,
+        value_after=_dump(output) if success and risk != "low" else None,
+        is_success=success,
+        duration_ms=int((time.time() - start) * 1000),
+        error_message=error,
+    )
+
+    if not success:
+        return {"error": error}
+    return output
+
+
+def execute_task(task_name):
+    """تنفيذ مهمة بعد اعتمادها، ثم التحقق من النتيجة."""
+    task = frappe.get_doc("AI Task", task_name)
+    if task.status != "Approved":
+        frappe.throw("لا يمكن تنفيذ مهمة غير معتمدة")
+
+    task.db_set("status", "Executing")
+    client = FrappeSiteClient(task.client_site)
+    calls = json.loads(task.planned_calls or "[]")
+
+    results, failed = [], False
+    for call in calls:
+        out = _execute_call(client, task.client_site, task.session, task.name, call)
+        results.append({"tool": call["name"], "result": out})
+        if isinstance(out, dict) and out.get("error"):
+            failed = True
+            break  # منع التنفيذ الجزئي الصامت: التوقف عند أول فشل
+
+    task.db_set("execution_result", _dump(results))
+
+    # استخراج نص الخطأ الفعلي لعرضه في الواجهة
+    error_text = None
+    for r in results:
+        res = r.get("result")
+        if isinstance(res, dict) and res.get("error"):
+            error_text = f"[{r.get('tool')}] {res['error']}"
+            break
+
+    verification = verify_task(client, calls, results)
+    task.db_set("verification_result", _dump(verification))
+    task.db_set("status", "Failed" if failed else "Completed")
+    if failed:
+        task.db_set("error_message", (error_text or "فشل غير محدد")[:1000])
+
+    frappe.db.commit()
+    return {
+        "status": task.status,
+        "results": results,
+        "verification": verification,
+        "error": error_text,
+    }
+
+
+def verify_task(client, calls, results):
+    """التحقق بعد التنفيذ: نجاح API لا يعني نجاح المهمة."""
+    checks = []
+    for call, res in zip(calls, results):
+        args = call.get("input") or {}
+        name = args.get("name")
+        doctype = args.get("doctype")
+
+        if call["name"] in ("update_document", "submit_document", "cancel_document") and name and doctype:
+            try:
+                current = client.get_doc(doctype, name).get("data") or {}
+                checks.append({
+                    "tool": call["name"],
+                    "doctype": doctype,
+                    "name": name,
+                    "docstatus": current.get("docstatus"),
+                    "modified": current.get("modified"),
+                    "verified": True,
+                })
+            except Exception as e:
+                checks.append({"tool": call["name"], "verified": False, "error": str(e)[:300]})
+
+        elif call["name"] in ("create_document", "add_custom_field"):
+            created = (res.get("result") or {}) if isinstance(res.get("result"), dict) else {}
+            checks.append({
+                "tool": call["name"],
+                "created_name": created.get("name"),
+                "verified": bool(created.get("name")),
+            })
+
+    return checks or [{"note": "لا توجد عمليات كتابة تحتاج تحققًا"}]

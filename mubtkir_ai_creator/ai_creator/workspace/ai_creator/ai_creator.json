@@ -157,8 +157,8 @@
   {
    "color": "Blue",
    "doc_view": "",
-   "label": "واجهة المحادثة",
-   "link_to": "ai-creator",
+   "label": "AI chat",
+   "link_to": "ai-creator-chat",
    "type": "Page"
   },
   {

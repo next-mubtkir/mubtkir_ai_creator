@@ -17,6 +17,42 @@ frappe.ui.form.on('AI Action Log', {
 			frappe.show_alert({ message: __('تم نسخ {0}', [label]), indicator: 'green' }, 3);
 		};
 
+		// زر التراجع عن هذه العملية (إن كانت قابلة للتراجع)
+		if (frm.doc.is_success && ['update_document', 'update_print_format'].includes(frm.doc.tool_name) && frm.doc.value_before) {
+			frappe.call({
+				method: 'mubtkir_ai_creator.lib.rollback.check_can_rollback',
+				args: { log_name: frm.doc.name },
+				callback: function (r) {
+					if (!(r.message || {}).can_rollback) return;
+
+					frm.add_custom_button(__('التراجع عن هذا التغيير'), function () {
+						frappe.confirm(
+							`<div dir="rtl">سيُعاد الحقول التي عدّلتها هذه العملية فقط إلى قيمتها السابقة
+							على حساب <b>${frappe.utils.escape_html(frm.doc.client_site || '')}</b>.<br>
+							هذا إجراء فعلي على حساب العميل، لا يمكن التراجع عنه إلا بعملية تراجع أخرى.<br><br>
+							<b>هل تريد المتابعة؟</b></div>`,
+							function () {
+								frappe.dom.freeze(__('جارٍ التراجع...'));
+								frappe.call({
+									method: 'mubtkir_ai_creator.lib.rollback.run_rollback',
+									args: { log_name: frm.doc.name },
+									callback: function (res) {
+										frappe.dom.unfreeze();
+										const m = res.message || {};
+										frappe.show_alert(
+											{ message: __('تم التراجع عن: {0}', [(m.restored_fields || []).join('، ')]), indicator: 'green' },
+											6
+										);
+									},
+									error: () => frappe.dom.unfreeze(),
+								});
+							}
+						);
+					}).addClass('btn-danger');
+				},
+			});
+		}
+
 		// زر نسخ التقرير الكامل
 		frm.add_custom_button(__('نسخ تقرير الخطأ'), function () {
 			const report = [

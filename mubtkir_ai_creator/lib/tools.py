@@ -40,6 +40,9 @@ def inspect_doctype(client, doctype):
         "name": data.get("name"),
         "module": data.get("module"),
         "is_submittable": data.get("is_submittable"),
+        "default_print_format": data.get("default_print_format"),
+        "autoname": data.get("autoname"),
+        "is_tree": data.get("is_tree"),
         "fields": [
             {
                 "fieldname": f.get("fieldname"),

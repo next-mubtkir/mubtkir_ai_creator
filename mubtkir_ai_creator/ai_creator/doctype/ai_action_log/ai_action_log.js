@@ -18,7 +18,7 @@ frappe.ui.form.on('AI Action Log', {
 		};
 
 		// زر التراجع عن هذه العملية (إن كانت قابلة للتراجع)
-		if (frm.doc.is_success && ['update_document', 'update_print_format'].includes(frm.doc.tool_name) && frm.doc.value_before) {
+		if (frm.doc.is_success && ['update_document', 'update_print_format', 'patch_print_format_html', 'patch_document_field'].includes(frm.doc.tool_name) && frm.doc.value_before) {
 			frappe.call({
 				method: 'mubtkir_ai_creator.lib.rollback.check_can_rollback',
 				args: { log_name: frm.doc.name },

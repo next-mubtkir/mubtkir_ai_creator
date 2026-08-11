@@ -266,7 +266,7 @@ def _execute_call(client, client_site, session_name, task_name, call):
 
     # لقطة قبل التعديل للعمليات القابلة للاسترجاع
     args = call.get("input") or {}
-    if call["name"] in ("update_document", "update_print_format", "submit_document", "cancel_document", "delete_document"):
+    if call["name"] in ("update_document", "update_print_format", "patch_print_format_html", "patch_document_field", "submit_document", "cancel_document", "delete_document"):
         try:
             dt = args.get("doctype") or "Print Format"
             nm = args.get("name")

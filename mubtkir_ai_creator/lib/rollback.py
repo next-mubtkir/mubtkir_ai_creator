@@ -28,10 +28,28 @@ def _resolve_target(tool_name, tool_input):
         changed_fields = {k: v for k, v in tool_input.items() if k in ("html", "css")}
         return doctype, name, changed_fields
 
+    if tool_name == "patch_print_format_html":
+        # التراجع هنا يعيد حقل html كاملًا لقيمته قبل التصحيح (نفس اللقطة
+        # المحفوظة)، وليس عكس عملية الاستبدال الجزئي نفسها فقط — كافٍ لاسترجاع
+        # الكود الأصلي، وإن كان أوسع تقنيًا من التغيير الدقيق الذي طرأ
+        doctype = "Print Format"
+        name = tool_input.get("name")
+        changed_fields = {"html": None}
+        return doctype, name, changed_fields
+
+    if tool_name == "patch_document_field":
+        doctype = tool_input.get("doctype")
+        name = tool_input.get("name")
+        fieldname = tool_input.get("fieldname")
+        changed_fields = {fieldname: None} if fieldname else {}
+        return doctype, name, changed_fields
+
     return None, None, {}
 
 
-REVERSIBLE_TOOLS = {"update_document", "update_print_format"}
+REVERSIBLE_TOOLS = {
+    "update_document", "update_print_format", "patch_print_format_html", "patch_document_field",
+}
 
 
 def can_rollback(log_name):

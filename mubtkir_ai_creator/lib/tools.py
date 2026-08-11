@@ -416,9 +416,94 @@ def add_custom_field(client, dt, fieldname, label, fieldtype, options=None, inse
 
 
 @tool(
+    "patch_print_format_html",
+    "medium",
+    "تعديل جزء محدد فقط من كود Print Format عبر البحث عن نص فريد واستبداله — يحافظ على بقية الكود "
+    "كما هو تمامًا دون إعادة إرساله. استخدم هذه الأداة دائمًا للتعديلات الجزئية بدل update_print_format "
+    "الذي يستبدل الحقل كاملًا ويخاطر بمحو أجزاء لم يُقصد تغييرها.",
+    {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "اسم Print Format"},
+            "find": {
+                "type": "string",
+                "description": "نص فريد موجود مرة واحدة بالضبط في الكود الحالي — انسخه حرفيًا من نتيجة get_document لا من الذاكرة",
+            },
+            "replace": {"type": "string", "description": "النص البديل"},
+        },
+        "required": ["name", "find", "replace"],
+    },
+)
+def patch_print_format_html(client, name, find, replace):
+    doc = client.get_doc("Print Format", name).get("data") or {}
+    html = doc.get("html") or ""
+
+    count = html.count(find)
+    if count == 0:
+        raise ValueError(
+            "النص المطلوب البحث عنه غير موجود في الكود الحالي بالضبط. "
+            "اقرأ الكود الحالي عبر get_document أولًا وانسخ النص المستهدف بدقة قبل إعادة المحاولة."
+        )
+    if count > 1:
+        raise ValueError(
+            f"النص المطلوب البحث عنه يتكرر {count} مرات في الكود — يجب أن يكون فريدًا. "
+            "وسّع النص بإضافة سياق أكثر (أسطر قبله أو بعده) حتى يصبح فريدًا."
+        )
+
+    new_html = html.replace(find, replace, 1)
+    return client.update_doc("Print Format", name, {"html": new_html}).get("data")
+
+
+@tool(
+    "patch_document_field",
+    "medium",
+    "تعديل جزء محدد فقط من محتوى حقل نصي/كودي في أي مستند (مثل script في Client Script أو Server Script، "
+    "أو description، أو أي حقل نصي طويل) عبر بحث واستبدال دقيق — يحافظ على بقية محتوى الحقل وبقية "
+    "المستند كما هو تمامًا. الأداة العامة المفضّلة لأي تعديل جزئي على كود أو نص موجود.",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string"},
+            "name": {"type": "string"},
+            "fieldname": {"type": "string", "description": "اسم الحقل النصي المطلوب تعديله، مثل script أو html أو css أو description"},
+            "find": {
+                "type": "string",
+                "description": "نص فريد موجود مرة واحدة بالضبط في محتوى الحقل الحالي — انسخه حرفيًا من get_document لا من الذاكرة",
+            },
+            "replace": {"type": "string", "description": "النص البديل — أرسل نصًا فارغًا فقط إذا طلب المستخدم صراحةً حذف هذا الجزء"},
+        },
+        "required": ["doctype", "name", "fieldname", "find", "replace"],
+    },
+)
+def patch_document_field(client, doctype, name, fieldname, find, replace):
+    doc = client.get_doc(doctype, name).get("data") or {}
+    current = doc.get(fieldname)
+    if current is None:
+        current = ""
+    if not isinstance(current, str):
+        raise ValueError(f"الحقل «{fieldname}» ليس نصيًا، لا يمكن تعديله جزئيًا بهذه الأداة")
+
+    count = current.count(find)
+    if count == 0:
+        raise ValueError(
+            f"النص المطلوب البحث عنه غير موجود بالضبط في حقل «{fieldname}» الحالي. "
+            "اقرأ المحتوى الحالي عبر get_document أولًا وانسخ النص المستهدف بدقة قبل إعادة المحاولة."
+        )
+    if count > 1:
+        raise ValueError(
+            f"النص المطلوب البحث عنه يتكرر {count} مرات في حقل «{fieldname}» — يجب أن يكون فريدًا. "
+            "وسّع النص بإضافة سياق أكثر (أسطر قبله أو بعده) حتى يصبح فريدًا."
+        )
+
+    new_value = current.replace(find, replace, 1)
+    return client.update_doc(doctype, name, {fieldname: new_value}).get("data")
+
+
+@tool(
     "update_print_format",
     "medium",
-    "تعديل Print Format لدى العميل (HTML/CSS)",
+    "استبدال كود Print Format بالكامل (HTML/CSS) — استخدمها فقط عند إعادة كتابة التصميم كليًا. "
+    "للتعديلات الجزئية استخدم patch_print_format_html بدلًا منها لتفادي محو أجزاء غير مقصودة.",
     {
         "type": "object",
         "properties": {

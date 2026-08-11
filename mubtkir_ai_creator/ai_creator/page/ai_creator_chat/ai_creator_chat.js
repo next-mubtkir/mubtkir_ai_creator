@@ -1,4 +1,4 @@
-frappe.pages['ai-creator'].on_page_load = function (wrapper) {
+frappe.pages['ai-creator-chat'].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: 'Mubtkir AI Creator',

@@ -65,3 +65,52 @@ def close_session(session):
     doc.db_set("status", "Closed")
     doc.db_set("ended_on", now_datetime())
     return {"status": "Closed"}
+
+
+@frappe.whitelist()
+def list_recent_sessions(client_site=None, limit=30):
+    """قائمة الجلسات السابقة لاستعراضها ومتابعتها لاحقًا."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    filters = {"session_user": frappe.session.user}
+    if client_site:
+        filters["client_site"] = client_site
+
+    rows = frappe.get_all(
+        "AI Session",
+        filters=filters,
+        fields=["name", "title", "client_site", "status", "started_on", "ended_on", "modified"],
+        order_by="modified desc",
+        limit_page_length=int(limit or 30),
+    )
+
+    for r in rows:
+        doc = frappe.get_doc("AI Session", r["name"])
+        msgs = doc.get_messages()
+        last_text = ""
+        for m in reversed(msgs):
+            content = m.get("content")
+            if isinstance(content, str):
+                last_text = content
+                break
+            if isinstance(content, list):
+                texts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+                if texts:
+                    last_text = texts[-1]
+                    break
+        r["message_count"] = len(msgs)
+        r["last_message"] = (last_text or "")[:150]
+
+    return rows
+
+
+@frappe.whitelist()
+def reopen_session(session):
+    """إعادة فتح جلسة مغلقة لمتابعة المحادثة من حيث توقفت."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    doc = frappe.get_doc("AI Session", session)
+    if doc.session_user != frappe.session.user:
+        frappe.throw("لا يمكنك متابعة جلسة موظف آخر")
+
+    doc.db_set("status", "Open")
+    doc.db_set("ended_on", None)
+    return {"session": doc.name, "client_site": doc.client_site, "title": doc.title}

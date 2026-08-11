@@ -296,6 +296,52 @@ def find_missing_required(client, doctype, data):
     return {"doctype": doctype, "missing_required": missing, "is_complete": not missing}
 
 
+@tool(
+    "find_document_name",
+    "low",
+    "إيجاد الاسم الحقيقي (docname) لمستند حسب حقول تحدده، إلزامي قبل تعديل أو حذف مستندات ذات أسماء مولَّدة تلقائيًا مثل Custom Field وProperty Setter (اسمها ليس نفس ما كتبه المستخدم)",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string"},
+            "filters": {"type": "object", "description": "مثال لـ Custom Field: {\"dt\": \"Sales Invoice\", \"fieldname\": \"warranty_work\"}"},
+        },
+        "required": ["doctype", "filters"],
+    },
+)
+def find_document_name(client, doctype, filters):
+    rows = client.get_list(doctype, fields=["name"], filters=filters, limit=5).get("data") or []
+    return {"doctype": doctype, "filters": filters, "matches": [r.get("name") for r in rows]}
+
+
+@tool(
+    "set_field_translation",
+    "medium",
+    "إضافة أو تحديث ترجمة نص (مثل تسمية حقل) بحيث تظهر بلغة مختلفة تلقائيًا حسب لغة واجهة كل مستخدم",
+    {
+        "type": "object",
+        "properties": {
+            "source_text": {"type": "string", "description": "النص كما هو مكتوب حاليًا (لغة النظام الافتراضية)"},
+            "language": {"type": "string", "description": "رمز اللغة الهدف، مثل en أو ar"},
+            "translated_text": {"type": "string", "description": "النص المترجَم لهذه اللغة"},
+        },
+        "required": ["source_text", "language", "translated_text"],
+    },
+)
+def set_field_translation(client, source_text, language, translated_text):
+    existing = client.get_list(
+        "Translation", fields=["name"],
+        filters={"source_text": source_text, "language": language}, limit=1,
+    ).get("data") or []
+
+    if existing:
+        return client.update_doc("Translation", existing[0]["name"], {"translated_text": translated_text}).get("data")
+    return client.create_doc(
+        "Translation",
+        {"source_text": source_text, "language": language, "translated_text": translated_text},
+    ).get("data")
+
+
 # ---------------- أدوات الكتابة (Medium) ----------------
 
 @tool(
@@ -435,10 +481,50 @@ def delete_document(client, doctype, name):
     return client.delete_doc(doctype, name)
 
 
+_STRIP_FOR_COPY = {
+    "name", "owner", "creation", "modified", "modified_by", "idx",
+    "docstatus", "doctype", "naming_series",
+}
+
+
+@tool(
+    "duplicate_within_client",
+    "medium",
+    "تكرار مستند أو تخصيص (مثل Print Format) داخل حساب نفس العميل — نسخة جديدة بنفس البيانات",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string"},
+            "name": {"type": "string", "description": "اسم المستند المراد تكراره"},
+            "new_name": {"type": "string", "description": "اسم/عنوان النسخة الجديدة إن لزم (مثل حقل name لـ Print Format)"},
+            "overrides": {"type": "object", "description": "حقول تُستبدل قيمتها في النسخة الجديدة"},
+        },
+        "required": ["doctype", "name"],
+    },
+)
+def duplicate_within_client(client, doctype, name, new_name=None, overrides=None):
+    doc = client.get_doc(doctype, name).get("data") or {}
+    if not doc:
+        frappe.throw(f"لم يُعثر على «{name}» من نوع {doctype} لدى هذا العميل")
+
+    payload = {k: v for k, v in doc.items() if k not in _STRIP_FOR_COPY and v is not None}
+    payload["doctype"] = doctype
+    if new_name:
+        payload["name"] = new_name
+    if overrides:
+        payload.update(overrides)
+
+    return {
+        "source": {"doctype": doctype, "name": name},
+        "created": client.create_doc(doctype, payload).get("data"),
+    }
+
+
 @tool(
     "copy_between_clients",
     "high",
-    "نسخ مستند أو تخصيص من حساب عميل إلى حساب عميل آخر (يتطلب تفعيل السياسة وموافقة صريحة)",
+    "نسخ مستند أو تخصيص من حساب عميل إلى حساب عميل مختلف (يتطلب تفعيل السياسة في AI Settings وموافقة صريحة). "
+    "لا تستخدمها للتكرار داخل نفس العميل — استخدم duplicate_within_client لذلك",
     {
         "type": "object",
         "properties": {
@@ -456,18 +542,12 @@ def delete_document(client, doctype, name):
 )
 def copy_between_clients(client, source_client, doctype, name, exclude_fields=None):
     if not frappe.db.get_single_value("AI Settings", "allow_cross_client_copy"):
-        frappe.throw("النسخ بين حسابات العملاء غير مفعّل في AI Settings")
+        frappe.throw("النسخ بين حسابات عملاء مختلفين غير مفعّل في AI Settings")
 
     source = FrappeSiteClient(source_client)
     doc = source.get_doc(doctype, name).get("data") or {}
 
-    strip = set(
-        (exclude_fields or [])
-        + [
-            "name", "owner", "creation", "modified", "modified_by", "idx",
-            "docstatus", "doctype", "naming_series",
-        ]
-    )
+    strip = _STRIP_FOR_COPY | set(exclude_fields or [])
     payload = {k: v for k, v in doc.items() if k not in strip and v is not None}
     payload["doctype"] = doctype
 
@@ -503,3 +583,33 @@ def run_tool(client, tool_name, arguments):
     if not t:
         frappe.throw(f"أداة غير معروفة: {tool_name}")
     return t["fn"](client, **(arguments or {}))
+
+
+def validate_call(tool_name, arguments):
+    """التحقق من معاملات استدعاء أداة قبل تنفيذه أو طلب الموافقة عليه.
+
+    يمنع أخطاء مثل TypeError الناتجة عن معامل اخترعه النموذج ولا وجود له
+    في تعريف الأداة (مثل doc_type_target بدل doctype)، ويعيد رسالة عربية
+    واضحة تسمح للنموذج بتصحيح الاستدعاء تلقائيًا بدل فشل التنفيذ لاحقًا.
+    """
+    t = TOOLS.get(tool_name)
+    if not t:
+        return f"أداة غير معروفة: {tool_name}"
+
+    props = (t["schema"] or {}).get("properties", {}) or {}
+    required = (t["schema"] or {}).get("required", []) or []
+    arguments = arguments or {}
+
+    unknown = [k for k in arguments if k not in props]
+    missing = [k for k in required if k not in arguments]
+
+    if not unknown and not missing:
+        return None
+
+    lines = [f"استدعاء غير صالح للأداة «{tool_name}» — لم يُنفَّذ."]
+    if unknown:
+        lines.append(f"معاملات غير معروفة: {'، '.join(unknown)}")
+    if missing:
+        lines.append(f"معاملات إجبارية ناقصة: {'، '.join(missing)}")
+    lines.append(f"المعاملات الصحيحة لهذه الأداة: {'، '.join(props.keys()) or 'بلا معاملات'}")
+    return "\n".join(lines)

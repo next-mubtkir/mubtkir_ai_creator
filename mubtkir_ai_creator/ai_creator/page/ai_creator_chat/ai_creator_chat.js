@@ -1,54 +1,265 @@
-frappe.pages['ai-creator'].on_page_load = function (wrapper) {
+frappe.pages['ai-creator-chat'].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: 'Mubtkir AI Creator',
 		single_column: true,
 	});
 
-	new AICreator(page);
+	new AICreatorApp(page);
 };
 
-class AICreator {
+// ============ مدير التبويبات ============
+class AICreatorApp {
 	constructor(page) {
 		this.page = page;
+		this.tabs = [];
+		this.active_id = null;
+		this.next_id = 1;
+
+		this.render_shell();
+		this.new_tab();
+	}
+
+	render_shell() {
+		this.page.main.html(`
+			<div class="ai-app" dir="rtl" style="max-width:1000px;margin:0 auto;">
+				<div class="ai-tabbar" style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding-bottom:8px;"></div>
+				<div class="ai-panels"></div>
+			</div>
+		`);
+		this.$tabbar = this.page.main.find('.ai-tabbar');
+		this.$panels = this.page.main.find('.ai-panels');
+	}
+
+	render_tabbar() {
+		this.$tabbar.empty();
+
+		this.tabs.forEach((tab) => {
+			const active = tab.id === this.active_id;
+			const $chip = $(`
+				<div class="ai-tab-chip" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:16px;cursor:pointer;font-size:12px;
+					background:${active ? 'var(--bg-blue)' : 'var(--bg-light-gray)'};border:1px solid ${active ? 'var(--blue)' : 'var(--border-color)'};">
+					<span class="ai-tab-title">${frappe.utils.escape_html(tab.title || 'محادثة جديدة')}</span>
+					<a href="#" class="ai-tab-close" style="color:var(--text-muted);">✕</a>
+				</div>
+			`);
+			$chip.on('click', (e) => {
+				if ($(e.target).hasClass('ai-tab-close')) return;
+				this.switch_tab(tab.id);
+			});
+			$chip.find('.ai-tab-close').on('click', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.close_tab(tab.id);
+			});
+			this.$tabbar.append($chip);
+		});
+
+		const $add = $(`<button class="btn btn-xs btn-default" title="محادثة جديدة">＋ جديدة</button>`);
+		$add.on('click', () => this.new_tab());
+		this.$tabbar.append($add);
+
+		const $history = $(`<button class="btn btn-xs btn-default" title="استعراض المحادثات السابقة">📜 محادثات سابقة</button>`);
+		$history.on('click', () => this.open_history());
+		this.$tabbar.append($history);
+	}
+
+	new_tab() {
+		const id = this.next_id++;
+		const $panel = $('<div class="ai-panel"></div>');
+		this.$panels.append($panel);
+
+		const tab = { id, title: 'محادثة جديدة', panel: $panel, chat: null };
+		tab.chat = new ChatTab($panel, {
+			onTitleChange: (t) => {
+				tab.title = t;
+				this.render_tabbar();
+			},
+			onClosed: () => this.close_tab(id),
+		});
+
+		this.tabs.push(tab);
+		this.switch_tab(id);
+	}
+
+	switch_tab(id) {
+		this.active_id = id;
+		this.tabs.forEach((t) => t.panel.toggle(t.id === id));
+		this.render_tabbar();
+	}
+
+	close_tab(id) {
+		const tab = this.tabs.find((t) => t.id === id);
+		if (!tab) return;
+
+		const finish = () => {
+			tab.panel.remove();
+			this.tabs = this.tabs.filter((t) => t.id !== id);
+			if (this.active_id === id) {
+				if (this.tabs.length) {
+					this.switch_tab(this.tabs[this.tabs.length - 1].id);
+				} else {
+					this.active_id = null;
+					this.new_tab();
+				}
+			} else {
+				this.render_tabbar();
+			}
+		};
+
+		if (tab.chat.session && tab.chat.session_status === 'Open') {
+			frappe.call('mubtkir_ai_creator.api.close_session', { session: tab.chat.session }).always(finish);
+		} else {
+			finish();
+		}
+	}
+
+	async open_history() {
+		const r = await frappe.call('mubtkir_ai_creator.api.list_recent_sessions', { limit: 30 });
+		const rows = r.message || [];
+
+		const d = new frappe.ui.Dialog({
+			title: __('المحادثات السابقة'),
+			size: 'large',
+			fields: [{ fieldname: 'list', fieldtype: 'HTML' }],
+		});
+
+		if (!rows.length) {
+			d.fields_dict.list.$wrapper.html('<div dir="rtl">لا توجد محادثات سابقة</div>');
+		} else {
+			const $list = $('<div dir="rtl" style="max-height:60vh;overflow:auto;"></div>');
+			rows.forEach((row) => {
+				const badge = row.status === 'Open' ? 'green' : 'grey';
+				const $item = $(`
+					<div style="border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer;">
+						<div style="display:flex;justify-content:space-between;">
+							<b>${frappe.utils.escape_html(row.title || row.name)}</b>
+							<span class="indicator ${badge}">${row.status === 'Open' ? 'مفتوحة' : 'مغلقة'}</span>
+						</div>
+						<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+							العميل: ${frappe.utils.escape_html(row.client_site || '')} — ${row.message_count} رسالة — آخر تحديث: ${frappe.datetime.comment_when(row.modified)}
+						</div>
+						<div style="font-size:12px;margin-top:6px;color:var(--text-color);">${frappe.utils.escape_html(row.last_message || '')}</div>
+					</div>
+				`);
+				$item.on('click', () => {
+					d.hide();
+					this.resume_session(row);
+				});
+				$list.append($item);
+			});
+			d.fields_dict.list.$wrapper.html('').append($list);
+		}
+
+		d.show();
+	}
+
+	async resume_session(row) {
+		const id = this.next_id++;
+		const $panel = $('<div class="ai-panel"></div>');
+		this.$panels.append($panel);
+
+		const tab = { id, title: row.title || row.name, panel: $panel, chat: null };
+		tab.chat = new ChatTab($panel, {
+			onTitleChange: (t) => {
+				tab.title = t;
+				this.render_tabbar();
+			},
+			onClosed: () => this.close_tab(id),
+		});
+
+		this.tabs.push(tab);
+		this.switch_tab(id);
+
+		await tab.chat.resume(row.name, row.client_site, row.title, row.status);
+	}
+}
+
+// ============ محادثة واحدة (تبويب واحد) ============
+class ChatTab {
+	constructor($container, hooks) {
+		this.$container = $container;
+		this.hooks = hooks || {};
 		this.session = null;
+		this.session_status = null;
 		this.client_site = null;
+		this.pending_files = [];
+		this.recognition = null;
 		this.render();
 		this.load_clients();
 	}
 
 	render() {
-		this.page.main.html(`
-			<div class="ai-creator" dir="rtl" style="max-width:900px;margin:0 auto;">
-				<div class="ai-topbar" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-					<div style="flex:1;"><select class="form-control ai-client"></select></div>
-					<button class="btn btn-primary btn-sm ai-start">بدء جلسة</button>
-					<span class="ai-status text-muted" style="font-size:12px;"></span>
-				</div>
-				<div class="ai-chat" style="border:1px solid var(--border-color);border-radius:8px;padding:12px;height:52vh;overflow-y:auto;background:var(--fg-color);"></div>
-				<div class="ai-attachments" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
-				<div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;">
-					<button class="btn btn-default ai-attach" disabled title="إرفاق ملف Excel أو صورة">📎</button>
-					<textarea class="form-control ai-input" rows="2" placeholder="اكتب طلبك... مثال: أضف حقل مخصص باسم رقم العقد في فاتورة المبيعات" disabled></textarea>
-					<button class="btn btn-primary ai-send" disabled>إرسال</button>
-				</div>
+		this.$container.html(`
+			<div class="ai-topbar" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+				<div style="flex:1;"><select class="form-control ai-client"></select></div>
+				<button class="btn btn-primary btn-sm ai-start">بدء جلسة</button>
+				<button class="btn btn-default btn-sm ai-end" style="display:none;">إنهاء المحادثة</button>
+				<span class="ai-status text-muted" style="font-size:12px;"></span>
+			</div>
+			<div class="ai-chat" style="border:1px solid var(--border-color);border-radius:8px;padding:12px;height:50vh;overflow-y:auto;background:var(--fg-color);"></div>
+			<div class="ai-attachments" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
+			<div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;">
+				<button class="btn btn-default ai-attach" disabled title="إرفاق ملف Excel أو صورة">📎</button>
+				<button class="btn btn-default ai-mic" disabled title="إدخال صوتي">🎤</button>
+				<textarea class="form-control ai-input" rows="2" placeholder="اكتب طلبك... مثال: أضف حقل مخصص باسم رقم العقد في فاتورة المبيعات" disabled></textarea>
+				<button class="btn btn-primary ai-send" disabled>إرسال</button>
 			</div>
 		`);
 
-		this.$client = this.page.main.find('.ai-client');
-		this.$chat = this.page.main.find('.ai-chat');
-		this.$input = this.page.main.find('.ai-input');
-		this.$status = this.page.main.find('.ai-status');
+		this.$client = this.$container.find('.ai-client');
+		this.$chat = this.$container.find('.ai-chat');
+		this.$input = this.$container.find('.ai-input');
+		this.$status = this.$container.find('.ai-status');
+		this.$attachments = this.$container.find('.ai-attachments');
+		this.$startBtn = this.$container.find('.ai-start');
+		this.$endBtn = this.$container.find('.ai-end');
+		this.$micBtn = this.$container.find('.ai-mic');
 
-		this.$attachments = this.page.main.find('.ai-attachments');
-		this.pending_files = [];
-
-		this.page.main.find('.ai-attach').on('click', () => this.pick_file());
-		this.page.main.find('.ai-start').on('click', () => this.start_session());
-		this.page.main.find('.ai-send').on('click', () => this.send());
+		this.$container.find('.ai-attach').on('click', () => this.pick_file());
+		this.$startBtn.on('click', () => this.start_session());
+		this.$endBtn.on('click', () => this.end_session());
+		this.$container.find('.ai-send').on('click', () => this.send());
+		this.$micBtn.on('click', () => this.toggle_mic());
 		this.$input.on('keydown', (e) => {
 			if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) this.send();
 		});
+
+		this.setup_mic();
+	}
+
+	setup_mic() {
+		const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+		if (!SR) {
+			this.$micBtn.prop('disabled', true).attr('title', 'الإدخال الصوتي غير مدعوم في هذا المتصفح (يعمل على Chrome)');
+			return;
+		}
+		this.recognition = new SR();
+		this.recognition.lang = frappe.boot.lang === 'ar' ? 'ar-SA' : 'en-US';
+		this.recognition.interimResults = false;
+		this.recognition.continuous = false;
+
+		this.recognition.onresult = (e) => {
+			const text = Array.from(e.results).map((r) => r[0].transcript).join(' ');
+			const current = this.$input.val();
+			this.$input.val(current ? current + ' ' + text : text);
+		};
+		this.recognition.onerror = () => this.$micBtn.removeClass('btn-danger');
+		this.recognition.onend = () => this.$micBtn.removeClass('btn-danger').text('🎤');
+	}
+
+	toggle_mic() {
+		if (!this.recognition) return;
+		if (this.$micBtn.hasClass('btn-danger')) {
+			this.recognition.stop();
+		} else {
+			this.$micBtn.addClass('btn-danger').text('🔴 يستمع...');
+			try {
+				this.recognition.start();
+			} catch (e) {
+				this.$micBtn.removeClass('btn-danger').text('🎤');
+			}
+		}
 	}
 
 	async load_clients() {
@@ -59,6 +270,16 @@ class AICreator {
 		this.$client.html(opts || '<option value="">لا يوجد عملاء مفعّلون</option>');
 	}
 
+	activate_inputs() {
+		this.$input.prop('disabled', false);
+		this.$container.find('.ai-send, .ai-attach, .ai-mic').prop('disabled', !this.recognition && false);
+		this.$container.find('.ai-send, .ai-attach').prop('disabled', false);
+		if (this.recognition) this.$micBtn.prop('disabled', false);
+		this.$client.prop('disabled', true);
+		this.$startBtn.hide();
+		this.$endBtn.show();
+	}
+
 	async start_session() {
 		const client = this.$client.val();
 		if (!client) return frappe.msgprint('اختر عميلًا أولًا');
@@ -66,21 +287,76 @@ class AICreator {
 		const r = await frappe.call('mubtkir_ai_creator.api.start_session', { client_site: client });
 		this.session = r.message.session;
 		this.client_site = r.message.client_site;
+		this.session_status = 'Open';
 
 		this.$chat.empty();
-		this.$input.prop('disabled', false);
-		this.page.main.find('.ai-send, .ai-attach').prop('disabled', false);
-		this.$client.prop('disabled', true); // قفل الجلسة على الموقع
+		this.activate_inputs();
 		this.$status.text(`الجلسة ${this.session} — العميل ${this.client_site}`);
 		this.add_bubble('system', `بدأت الجلسة على حساب: ${this.client_site}`);
+		this.hooks.onTitleChange && this.hooks.onTitleChange(this.client_site);
+	}
+
+	async resume(session_name, client_site, title, status) {
+		this.session = session_name;
+		this.client_site = client_site;
+		this.session_status = status;
+
+		if (status !== 'Open') {
+			await frappe.call('mubtkir_ai_creator.api.reopen_session', { session: session_name });
+			this.session_status = 'Open';
+		}
+
+		this.$client.val(client_site).prop('disabled', true);
+		this.activate_inputs();
+		this.$status.text(`الجلسة ${this.session} — العميل ${this.client_site}`);
+		this.hooks.onTitleChange && this.hooks.onTitleChange(title || client_site);
+
+		const r = await frappe.call('mubtkir_ai_creator.api.get_session_messages', { session: session_name });
+		this.$chat.empty();
+		this.add_bubble('system', `تمت متابعة المحادثة على حساب: ${client_site}`);
+		this.render_history(r.message || []);
+	}
+
+	render_history(messages) {
+		messages.forEach((m) => {
+			const role = m.role === 'user' ? 'user' : 'assistant';
+			const text = this.extract_text(m.content);
+			if (text) this.add_bubble(role, frappe.utils.escape_html(text), text);
+		});
+	}
+
+	extract_text(content) {
+		if (typeof content === 'string') return content;
+		if (Array.isArray(content)) {
+			return content
+				.map((b) => {
+					if (b.type === 'text') return b.text;
+					if (b.type === 'image') return '[صورة مرفقة]';
+					if (b.type === 'tool_use') return `[استدعاء أداة: ${b.name}]`;
+					if (b.type === 'tool_result') return null; // نتائج الأدوات لا تُعرض في السجل المختصر
+					return null;
+				})
+				.filter(Boolean)
+				.join('\n');
+		}
+		return '';
+	}
+
+	async end_session() {
+		frappe.confirm('إنهاء هذه المحادثة؟ يمكنك متابعتها لاحقًا من «محادثات سابقة».', async () => {
+			await frappe.call('mubtkir_ai_creator.api.close_session', { session: this.session });
+			this.session_status = 'Closed';
+			this.add_bubble('system', 'أُنهيت المحادثة — يمكنك متابعتها لاحقًا من محادثات سابقة');
+			this.$input.prop('disabled', true);
+			this.$container.find('.ai-send, .ai-attach, .ai-mic').prop('disabled', true);
+			this.$endBtn.hide();
+		});
 	}
 
 	decode_unicode(txt) {
 		if (!txt) return '';
 		try {
-			return String(txt).replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
-				String.fromCharCode(parseInt(h, 16))
-			);
+			return String(txt).replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 		} catch (e) {
 			return String(txt);
 		}
@@ -95,9 +371,7 @@ class AICreator {
 		};
 
 		const $bubble = $(
-			`<div style="position:relative;max-width:80%;padding:10px 12px;border-radius:8px;margin-bottom:10px;white-space:pre-wrap;${
-				styles[role] || ''
-			}"></div>`
+			`<div style="position:relative;max-width:80%;padding:10px 12px;border-radius:8px;margin-bottom:10px;white-space:pre-wrap;${styles[role] || ''}"></div>`
 		);
 		$bubble.append(`<div class="ai-bubble-body">${html}</div>`);
 
@@ -121,10 +395,7 @@ class AICreator {
 			docname: this.session,
 			folder: 'Home/Attachments',
 			restrictions: {
-				allowed_file_types: [
-					'.xlsx', '.xlsm', '.csv', '.txt', '.json', '.md',
-					'image/*',
-				],
+				allowed_file_types: ['.xlsx', '.xlsm', '.csv', '.txt', '.json', '.md', 'image/*'],
 				max_file_size: 5 * 1024 * 1024,
 			},
 			on_success: (file_doc) => {
@@ -158,9 +429,7 @@ class AICreator {
 		if ((!msg && !this.pending_files.length) || !this.session) return;
 
 		const files = this.pending_files.slice();
-		const files_note = files.length
-			? `\n\n📎 مرفقات: ${files.map((f) => f.name).join('، ')}`
-			: '';
+		const files_note = files.length ? `\n\n📎 مرفقات: ${files.map((f) => f.name).join('، ')}` : '';
 
 		this.add_bubble('user', frappe.utils.escape_html(msg + files_note));
 		this.$input.val('');
@@ -185,12 +454,12 @@ class AICreator {
 		if (!res) return;
 
 		if (res.type === 'message') {
-			return this.add_bubble('assistant', frappe.utils.escape_html(res.text || ''));
+			return this.add_bubble('assistant', frappe.utils.escape_html(res.text || ''), res.text || '');
 		}
 
 		if (res.type === 'approval_required') {
 			const risk_ar = { Low: 'منخفضة', Medium: 'متوسطة', High: 'مرتفعة' }[res.risk_level] || res.risk_level;
-			this.add_bubble('assistant', frappe.utils.escape_html(res.plan || ''));
+			this.add_bubble('assistant', frappe.utils.escape_html(res.plan || ''), res.plan || '');
 
 			const $box = $(`
 				<div style="border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-bottom:10px;">

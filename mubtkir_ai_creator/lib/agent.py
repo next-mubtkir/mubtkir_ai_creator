@@ -71,6 +71,34 @@ def run_turn(session_name, user_message, file_urls=None):
             session.append_message("assistant", result["text"])
             return {"type": "message", "text": result["text"]}
 
+        # التحقق من صحة كل استدعاء قبل أي تنفيذ أو طلب موافقة — يمنع أخطاء
+        # مثل معامل اخترعه النموذج ولا وجود له، ويتيح له تصحيح الاستدعاء
+        # ضمن نفس الدورة بدل أن يفشل بعد اعتماد المستخدم للعملية
+        invalid = {
+            c["id"]: tools.validate_call(c["name"], c.get("input") or {})
+            for c in result["tool_calls"]
+        }
+        invalid = {k: v for k, v in invalid.items() if v}
+
+        if invalid:
+            assistant_blocks = []
+            if result["text"]:
+                assistant_blocks.append({"type": "text", "text": result["text"]})
+            tool_results = []
+            for call in result["tool_calls"]:
+                assistant_blocks.append(
+                    {"type": "tool_use", "id": call["id"], "name": call["name"], "input": call["input"]}
+                )
+                err = invalid.get(call["id"])
+                content = err if err else "لم يُنفَّذ بعد — بانتظار تصحيح استدعاء آخر في نفس الرد"
+                tool_results.append(
+                    {"type": "tool_result", "tool_use_id": call["id"], "content": content}
+                )
+
+            messages.append({"role": "assistant", "content": assistant_blocks})
+            messages.append({"role": "user", "content": tool_results})
+            continue  # إعادة المحاولة بنفس الدورة بدل عرض خطأ للمستخدم
+
         # فحص الخطورة قبل أي تنفيذ
         pending = [c for c in result["tool_calls"] if needs_approval(tools.get_risk(c["name"]))]
 
@@ -216,8 +244,10 @@ def _execute_call(client, client_site, session_name, task_name, call):
     risk = tools.get_risk(call["name"])
     before = None
 
-    # بوابات إلزامية: الحقول الإجبارية أولًا، ثم صحة حقول الربط
-    blocked = _mandatory_required_check(client, call) or _mandatory_link_check(client, call)
+    # طبقة دفاع ثانية: التحقق من صحة المعاملات مرة أخرى فور التنفيذ الفعلي
+    # (مثلًا عند تنفيذ مهمة اعتُمدت سابقًا)، ثم البوابات الإلزامية المعتادة
+    invalid = tools.validate_call(call["name"], call.get("input") or {})
+    blocked = invalid or _mandatory_required_check(client, call) or _mandatory_link_check(client, call)
     if blocked:
         log_action(
             client_site=client_site,

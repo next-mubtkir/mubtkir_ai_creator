@@ -17,17 +17,18 @@ def get_clients():
 
 
 @frappe.whitelist()
-def start_session(client_site, title=None):
-    """بدء جلسة مقفلة على عميل واحد."""
+def start_session(client_site, title=None, request_type=None):
+    """Start a session locked to one client site."""
     frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
     doc = frappe.get_doc({
         "doctype": "AI Session",
         "client_site": client_site,
-        "title": title or f"جلسة {client_site}",
+        "title": title or client_site,
+        "request_type": request_type or "",
     })
     doc.insert()
     frappe.db.commit()
-    return {"session": doc.name, "client_site": doc.client_site}
+    return {"session": doc.name, "client_site": doc.client_site, "request_type": doc.request_type}
 
 
 @frappe.whitelist()
@@ -68,17 +69,70 @@ def close_session(session):
 
 
 @frappe.whitelist()
-def list_recent_sessions(client_site=None, limit=30):
-    """قائمة الجلسات السابقة لاستعراضها ومتابعتها لاحقًا."""
+def update_session_info(session, title=None, request_type=None):
+    """Update session metadata (title, request type)."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    doc = frappe.get_doc("AI Session", session)
+    if title is not None:
+        doc.db_set("title", title)
+    if request_type is not None:
+        doc.db_set("request_type", request_type)
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def get_session_stats(session):
+    """Return live stats for the session info panel."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    doc = frappe.get_doc("AI Session", session)
+    msgs = doc.get_messages()
+
+    tool_count = frappe.db.count("AI Action Log", {"session": session})
+
+    # Rough token estimation: ~4 chars per token for mixed Arabic/English
+    total_chars = sum(
+        len(str(m.get("content", ""))) for m in msgs
+    )
+    est_tokens = int(total_chars / 3.5)  # conservative for Arabic
+
+    return {
+        "session": doc.name,
+        "client_site": doc.client_site,
+        "title": doc.title,
+        "request_type": doc.request_type,
+        "status": doc.status,
+        "session_user": doc.session_user,
+        "started_on": str(doc.started_on or ""),
+        "modified": str(doc.modified or ""),
+        "message_count": len(msgs),
+        "tool_count": tool_count,
+        "est_tokens": est_tokens,
+    }
+
+
+@frappe.whitelist()
+def list_recent_sessions(client_site=None, request_type=None, search=None, limit=30):
+    """List recent sessions for the sidebar."""
     frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
     filters = {"session_user": frappe.session.user}
     if client_site:
         filters["client_site"] = client_site
+    if request_type:
+        filters["request_type"] = request_type
+
+    or_filters = None
+    if search:
+        search = f"%{search}%"
+        or_filters = [
+            ["title", "like", search],
+            ["client_site", "like", search],
+        ]
 
     rows = frappe.get_all(
         "AI Session",
         filters=filters,
-        fields=["name", "title", "client_site", "status", "started_on", "ended_on", "modified"],
+        or_filters=or_filters,
+        fields=["name", "title", "client_site", "status", "request_type", "started_on", "ended_on", "modified"],
         order_by="modified desc",
         limit_page_length=int(limit or 30),
     )

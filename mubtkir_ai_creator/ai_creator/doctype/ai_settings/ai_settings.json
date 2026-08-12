@@ -33,7 +33,7 @@
    "fieldname": "llm_provider",
    "fieldtype": "Select",
    "label": "مزود النموذج",
-   "options": "Anthropic\nOpenAI",
+   "options": "Anthropic\nOpenAI\nOllama",
    "default": "Anthropic",
    "reqd": 1
   },
@@ -62,7 +62,8 @@
   {
    "fieldname": "api_key",
    "fieldtype": "Password",
-   "label": "مفتاح API للنموذج"
+   "label": "مفتاح API للنموذج",
+   "description": "Required for Anthropic/OpenAI. Leave empty for Ollama (no key needed)."
   },
   {
    "fieldname": "max_tokens",

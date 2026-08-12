@@ -16,7 +16,7 @@ from frappe.utils import now_datetime
 from mubtkir_ai_creator.lib.agent import _dump, log_action
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
 
-ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings")
+ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings", "Custom HTML Block")
 
 # الحقول التي لا تُنسخ أبدًا بين المواقع
 STRIP_FIELDS = {

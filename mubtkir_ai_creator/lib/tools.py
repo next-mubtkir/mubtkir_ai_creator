@@ -645,6 +645,105 @@ def copy_between_clients(client, source_client, doctype, name, exclude_fields=No
     }
 
 
+
+
+# ---------------- أدوات Workspace ----------------
+
+@tool(
+    "list_workspaces",
+    "low",
+    "استعراض كل Workspaces المتاحة لدى العميل",
+    {"type": "object", "properties": {}, "required": []},
+)
+def _list_workspaces(client):
+    from mubtkir_ai_creator.lib.workspace_tools import list_workspaces
+    return list_workspaces(client)
+
+
+@tool(
+    "get_workspace_content",
+    "low",
+    "قراءة محتوى Workspace بالكامل: الاختصارات والروابط والبلوكات المخصصة",
+    {"type": "object", "properties": {"workspace_name": {"type": "string"}}, "required": ["workspace_name"]},
+)
+def _get_workspace_content(client, workspace_name):
+    from mubtkir_ai_creator.lib.workspace_tools import get_workspace_content
+    return get_workspace_content(client, workspace_name)
+
+
+@tool(
+    "add_workspace_shortcut",
+    "medium",
+    "إضافة اختصار جديد إلى Workspace لدى العميل",
+    {
+        "type": "object",
+        "properties": {
+            "workspace_name": {"type": "string"},
+            "label": {"type": "string"},
+            "link_to": {"type": "string", "description": "اسم DocType أو Page"},
+            "link_type": {"type": "string", "default": "DocType"},
+            "doc_view": {"type": "string", "default": "List"},
+            "color": {"type": "string", "default": "Blue"},
+        },
+        "required": ["workspace_name", "label", "link_to"],
+    },
+)
+def _add_workspace_shortcut(client, workspace_name, label, link_to, link_type="DocType", doc_view="List", color="Blue"):
+    from mubtkir_ai_creator.lib.workspace_tools import add_shortcut
+    return add_shortcut(client, workspace_name, label, link_to, link_type, doc_view, color)
+
+
+@tool(
+    "add_workspace_link",
+    "medium",
+    "إضافة رابط داخل بطاقة في Workspace لدى العميل — ينشئ البطاقة تلقائيًا إن لم تكن موجودة",
+    {
+        "type": "object",
+        "properties": {
+            "workspace_name": {"type": "string"},
+            "card_name": {"type": "string", "description": "اسم البطاقة"},
+            "label": {"type": "string"},
+            "link_to": {"type": "string"},
+            "link_type": {"type": "string", "default": "DocType"},
+            "description": {"type": "string", "default": ""},
+        },
+        "required": ["workspace_name", "card_name", "label", "link_to"],
+    },
+)
+def _add_workspace_link(client, workspace_name, card_name, label, link_to, link_type="DocType", description=""):
+    from mubtkir_ai_creator.lib.workspace_tools import add_link
+    return add_link(client, workspace_name, card_name, label, link_to, link_type, description)
+
+
+@tool(
+    "add_workspace_block",
+    "medium",
+    "إضافة Custom Block (HTML Block) إلى Workspace لدى العميل — يجب أن يكون البلوك موجودًا مسبقًا كمستند Custom HTML Block",
+    {
+        "type": "object",
+        "properties": {
+            "workspace_name": {"type": "string"},
+            "block_name": {"type": "string", "description": "اسم Custom HTML Block الموجود لدى العميل"},
+        },
+        "required": ["workspace_name", "block_name"],
+    },
+)
+def _add_workspace_block(client, workspace_name, block_name):
+    from mubtkir_ai_creator.lib.workspace_tools import add_custom_block
+    return add_custom_block(client, workspace_name, block_name)
+
+
+@tool(
+    "list_custom_blocks",
+    "low",
+    "استعراض Custom HTML Blocks المتاحة لدى العميل",
+    {"type": "object", "properties": {}, "required": []},
+)
+def _list_custom_blocks(client):
+    from mubtkir_ai_creator.lib.workspace_tools import list_custom_blocks
+    return list_custom_blocks(client)
+
+
 # ---------------- مساعدات ----------------
 
 def get_tool_definitions():

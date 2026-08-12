@@ -18,9 +18,9 @@ def create_deployment_from_template(name):
             "Server Script يعمل على سيرفر العميل وقد يعطّل عمله، فهو للتوثيق والتصدير فقط."
         )
 
-    if tpl.artifact_type not in ("Print Format", "Custom Field"):
+    if tpl.artifact_type not in ("Print Format", "Custom Field", "Custom HTML Block"):
         frappe.throw(
-            f"النشر الجماعي يدعم Print Format و Custom Field فقط حاليًا. النوع الحالي: {tpl.artifact_type}"
+            f"Bulk deployment supports Print Format, Custom Field, and Custom HTML Block only. Current type: {tpl.artifact_type}"
         )
 
     dep = frappe.get_doc({

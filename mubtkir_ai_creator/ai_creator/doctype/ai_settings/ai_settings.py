@@ -10,7 +10,7 @@ def get_llm_config():
     """إرجاع إعدادات النموذج مع فك تشفير المفتاح."""
     doc = frappe.get_single("AI Settings")
     key = doc.get_password("api_key", raise_exception=False)
-    if not key:
+    if not key and doc.llm_provider != "Ollama":
         frappe.throw("لم يتم ضبط مفتاح API للنموذج في AI Settings")
     return {
         "provider": doc.llm_provider or "Anthropic",

@@ -47,7 +47,7 @@
    "fieldname": "deployment_type",
    "fieldtype": "Select",
    "label": "نوع العملية",
-   "options": "Print Format\nCustom Field\nSettings",
+   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block",
    "reqd": 1,
    "in_list_view": 1
   },

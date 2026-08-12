@@ -125,3 +125,32 @@ frappe.ui.form.on('AI Client Site', {
 		});
 	},
 });
+
+
+// Capture All button
+frappe.ui.form.on('AI Client Site', {
+    refresh: function(frm) {
+        if (frm.is_new()) return;
+        frm.add_custom_button(__('Capture All Customizations'), function() {
+            frappe.confirm(
+                'Capture all Custom Fields, Property Setters, Print Formats, Client Scripts, and Server Scripts from this client?',
+                function() {
+                    frappe.call({
+                        method: 'mubtkir_ai_creator.lib.templates.run_capture_all',
+                        args: { client_site: frm.doc.name },
+                        freeze: true,
+                        freeze_message: __('Capturing...'),
+                        callback: function(r) {
+                            const m = r.message || {};
+                            frappe.msgprint({
+                                title: __('Capture Complete'),
+                                indicator: 'green',
+                                message: `Captured: ${m.captured || 0} items. Errors: ${(m.errors || []).length}`,
+                            });
+                        },
+                    });
+                }
+            );
+        }, __('Templates'));
+    },
+});

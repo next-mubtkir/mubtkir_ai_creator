@@ -120,6 +120,8 @@ def chat(messages, tools=None, system=None, heavy=False):
         cfg = dict(cfg, model=cfg["heavy_model"])
     if cfg["provider"] == "Anthropic":
         return _anthropic(cfg, messages, tools, system or SYSTEM_PROMPT)
+    if cfg["provider"] == "Ollama":
+        return _ollama(cfg, messages, tools, system or SYSTEM_PROMPT)
     return _openai(cfg, messages, tools, system or SYSTEM_PROMPT)
 
 
@@ -290,3 +292,53 @@ def _openai(cfg, messages, tools, system):
         calls.append({"id": c.get("id"), "name": c.get("function", {}).get("name"), "input": args})
 
     return {"text": msg.get("content") or "", "tool_calls": calls, "raw": data}
+
+# ---------------- Ollama (OpenAI-compatible, no API key) ----------------
+
+def _ollama(cfg, messages, tools, system):
+    """Ollama uses OpenAI-compatible API but needs no auth key and defaults to localhost."""
+    base = (cfg.get("base_url") or "http://localhost:11434").rstrip("/")
+    model = (cfg.get("model") or "").strip() or "llama3"
+
+    oa_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["input_schema"],
+            },
+        }
+        for t in (tools or [])
+    ] if tools else None
+
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": system}] + _to_openai_messages(messages),
+    }
+    if oa_tools:
+        payload["tools"] = oa_tools
+
+    resp = requests.post(
+        f"{base}/v1/chat/completions",
+        headers={"Content-Type": "application/json"},
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        timeout=cfg["timeout"],
+    )
+
+    if resp.status_code >= 400:
+        _raise_api_error("Ollama", resp)
+
+    data = resp.json()
+    msg = (data.get("choices") or [{}])[0].get("message", {})
+
+    calls = []
+    for c in msg.get("tool_calls") or []:
+        try:
+            args = json.loads(c.get("function", {}).get("arguments") or "{}")
+        except ValueError:
+            args = {}
+        calls.append({"id": c.get("id"), "name": c.get("function", {}).get("name"), "input": args})
+
+    return {"text": msg.get("content") or "", "tool_calls": calls, "raw": data}
+

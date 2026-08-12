@@ -14,7 +14,8 @@
   "title",
   "messages",
   "started_on",
-  "ended_on"
+  "ended_on",
+  "pinned_message"
  ],
  "fields": [
   {
@@ -80,6 +81,12 @@
    "fieldname": "ended_on",
    "fieldtype": "Datetime",
    "label": "النهاية",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pinned_message",
+   "fieldtype": "Small Text",
+   "label": "Pinned Message",
    "read_only": 1
   }
  ],

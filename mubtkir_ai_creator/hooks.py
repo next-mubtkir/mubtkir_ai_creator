@@ -14,6 +14,10 @@ scheduler_events = {
         # فحص حالة الاتصال بمواقع العملاء كل ساعة
         "0 * * * *": [
             "mubtkir_ai_creator.lib.connection.ping_all_sites"
+        ],
+        # تنفيذ المهام المجدولة كل دقيقة
+        "* * * * *": [
+            "mubtkir_ai_creator.lib.scheduler.execute_scheduled_tasks"
         ]
     }
 }

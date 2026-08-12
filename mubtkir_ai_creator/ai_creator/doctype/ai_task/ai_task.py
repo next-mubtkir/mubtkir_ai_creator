@@ -10,8 +10,8 @@ class AITask(Document):
 
 
 @frappe.whitelist()
-def approve(name):
-    """اعتماد مهمة متوقفة على موافقة، ثم تنفيذها."""
+def approve(name, scheduled_time=None):
+    """اعتماد مهمة — تنفيذ فوري أو جدولة لوقت لاحق."""
     frappe.only_for(["System Manager", "AI Creator Supervisor"])
     task = frappe.get_doc("AI Task", name)
     if task.status != "Pending Approval":
@@ -19,6 +19,13 @@ def approve(name):
 
     task.db_set("approved_by", frappe.session.user)
     task.db_set("approved_on", now_datetime())
+
+    if scheduled_time:
+        task.db_set("scheduled_time", scheduled_time)
+        task.db_set("status", "Approved")
+        frappe.db.commit()
+        return {"status": "Scheduled", "scheduled_time": scheduled_time}
+
     task.db_set("status", "Approved")
 
     from mubtkir_ai_creator.lib.agent import execute_task

@@ -168,3 +168,16 @@ def reopen_session(session):
     doc.db_set("status", "Open")
     doc.db_set("ended_on", None)
     return {"session": doc.name, "client_site": doc.client_site, "title": doc.title}
+
+
+@frappe.whitelist()
+def save_pinned(session, pinned_message=None):
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    frappe.db.set_value("AI Session", session, "pinned_message", pinned_message or "")
+    frappe.db.commit()
+    return {"ok": True}
+
+@frappe.whitelist()
+def get_pinned(session):
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    return frappe.db.get_value("AI Session", session, "pinned_message") or ""

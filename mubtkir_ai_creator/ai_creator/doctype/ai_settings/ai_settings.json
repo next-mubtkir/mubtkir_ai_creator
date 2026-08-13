@@ -21,7 +21,9 @@
   "attachments_section",
   "max_rows_per_sheet",
   "column_break_5",
-  "max_text_chars"
+  "max_text_chars",
+  "voice_section",
+  "whisper_api_key"
  ],
  "fields": [
   {
@@ -126,6 +128,17 @@
    "fieldtype": "Int",
    "label": "أقصى عدد أحرف لمحتوى الملف",
    "default": "30000"
+  },
+  {
+   "fieldname": "voice_section",
+   "fieldtype": "Section Break",
+   "label": "المايك (تحويل الصوت إلى نص)"
+  },
+  {
+   "fieldname": "whisper_api_key",
+   "fieldtype": "Password",
+   "label": "مفتاح OpenAI (Whisper)",
+   "description": "مفتاح منفصل خاص بـ OpenAI Whisper API لتفريغ المايك — مطلوب بغض النظر عن مزود النموذج الأساسي أعلاه"
   }
  ],
  "issingle": 1,

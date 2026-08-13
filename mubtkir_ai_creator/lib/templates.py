@@ -16,6 +16,7 @@ ARTIFACTS = {
     # Server Script: التقاط وتوثيق فقط — كود يعمل على سيرفر العميل، ونشره خطر
     "Server Script": {"doctype": "Server Script", "deployable": False},
     "Custom HTML Block": {"doctype": "Custom HTML Block", "deployable": True},
+    "Workspace": {"doctype": "Workspace", "deployable": True},
 }
 
 STRIP_FIELDS = {
@@ -39,6 +40,7 @@ def list_available(client_site, artifact_type, target_doctype=None, limit=100):
         "Client Script": (["name", "dt", "script_type", "enabled"], "dt"),
         "Server Script": (["name", "script_type", "reference_doctype", "disabled"], "reference_doctype"),
         "Custom HTML Block": (["name", "html", "private", "modified"], None),
+        "Workspace": (["name", "label", "module", "public"], None),
     }
     fields, filter_key = field_map[artifact_type]
     filters = {filter_key: target_doctype} if target_doctype and filter_key else None

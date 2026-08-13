@@ -181,3 +181,16 @@ def save_pinned(session, pinned_message=None):
 def get_pinned(session):
     frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
     return frappe.db.get_value("AI Session", session, "pinned_message") or ""
+
+
+@frappe.whitelist()
+def transcribe_audio():
+    """تفريغ مقطع صوتي مرفوع (multipart, حقل 'audio') إلى نص عبر Whisper API."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    from mubtkir_ai_creator.lib.transcription import transcribe
+
+    file = frappe.request.files.get("audio")
+    if not file:
+        frappe.throw("لم يتم إرسال أي ملف صوتي")
+
+    return {"text": transcribe(file.read(), file.filename or "audio.webm", file.mimetype or "audio/webm")}

@@ -63,7 +63,7 @@ frappe.ui.form.on('AI Client Site', {
 						fieldname: 'artifact_type',
 						label: __('النوع'),
 						fieldtype: 'Select',
-						options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script',
+						options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script\nCustom HTML Block\nWorkspace',
 						reqd: 1,
 						default: 'Print Format',
 					},

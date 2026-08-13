@@ -609,6 +609,35 @@ def duplicate_within_client(client, doctype, name, new_name=None, overrides=None
 
 
 @tool(
+    "list_client_sites",
+    "low",
+    "استعراض حسابات العملاء المفعّلة المسجّلة في النظام (اسم السجل الفعلي ورابط الموقع). "
+    "استخدمها دائمًا قبل copy_between_clients لإيجاد source_client الصحيح — لأن الاسم الذي يذكره "
+    "المستخدم أثناء المحادثة قد يختلف عن اسم السجل الفعلي (name) المطلوب في المعامل، ومحاولة النسخ "
+    "باسم غير مطابق تمامًا تفشل بصمت.",
+    {
+        "type": "object",
+        "properties": {
+            "search": {"type": "string", "description": "نص للبحث في اسم العميل (اختياري) — اتركه فارغًا لعرض الكل"},
+        },
+        "required": [],
+    },
+)
+def list_client_sites(client, search=None):
+    filters = {"is_active": 1}
+    if search:
+        filters["client_name"] = ["like", f"%{search}%"]
+
+    return frappe.get_all(
+        "AI Client Site",
+        filters=filters,
+        fields=["name", "client_name", "site_url"],
+        order_by="client_name asc",
+        limit_page_length=200,
+    )
+
+
+@tool(
     "copy_between_clients",
     "high",
     "نسخ مستند أو تخصيص من حساب عميل إلى حساب عميل مختلف (يتطلب تفعيل السياسة في AI Settings وموافقة صريحة). "

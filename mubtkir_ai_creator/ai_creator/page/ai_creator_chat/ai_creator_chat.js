@@ -24,11 +24,11 @@ const CSS=`
 :root{--mc-p:#3867AE;--mc-s:#0F84B5;--mc-a:#0BA1B8;--mc-pu:#644DA6;--mc-t:#243B63;--mc-bd:rgba(56,103,174,.15);--mc-sf:rgba(56,103,174,.05)}
 *{box-sizing:border-box}
 .mc{font-family:Inter,-apple-system,sans-serif;color:var(--mc-t);height:calc(100vh - 60px);display:flex;direction:rtl}
-.mc-side{width:250px;min-width:200px;border-left:0.5px solid var(--mc-bd);display:flex;flex-direction:column;background:#fafbfd;position:relative;transition:margin .2s}
-.mc-side.collapsed{margin-right:-250px;min-width:0;width:0;overflow:hidden}
+.mc-left-col{width:250px;min-width:200px;border-right:0.5px solid var(--mc-bd);display:flex;flex-direction:column;background:#fafbfd;position:relative;transition:margin .2s;overflow:hidden}
+.mc-left-col.collapsed{margin-left:-250px;min-width:0;width:0;border:none}
+.mc-side{flex:1 1 55%;min-height:120px;display:flex;flex-direction:column;overflow:hidden;border-bottom:0.5px solid var(--mc-bd)}
 .mc-center{flex:1;display:flex;flex-direction:column;min-width:0;background:#fff}
-.mc-info{width:210px;min-width:180px;border-right:0.5px solid var(--mc-bd);display:flex;flex-direction:column;background:#fafbfd;position:relative;transition:margin .2s}
-.mc-info.collapsed{margin-left:-210px;min-width:0;width:0;overflow:hidden}
+.mc-info{flex:1 1 45%;min-height:100px;display:flex;flex-direction:column;overflow-y:auto;background:#fafbfd}
 .mc-toggle{width:24px;height:24px;border-radius:50%;border:0.5px solid var(--mc-bd);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;z-index:5;flex-shrink:0;align-self:center}
 .mc-side-hdr{padding:10px 12px;display:flex;align-items:center;gap:6px;border-bottom:0.5px solid var(--mc-bd)}
 .mc-side-hdr .t{font-weight:500;font-size:14px;color:var(--mc-p);flex:1}
@@ -117,7 +117,7 @@ const CSS=`
 .mc-badge{display:inline-block;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:500}
 .mc-badge.open{background:#dcfce7;color:#166534}.mc-badge.closed{background:#f1f5f9;color:#64748b}
 .mc-hint{font-size:9px;color:#94a3b8;text-align:center;margin-top:2px}
-@media(max-width:768px){.mc-side,.mc-info{display:none}}
+@media(max-width:768px){.mc-left-col{display:none}}
 `;
 
 class AICreatorApp{
@@ -126,7 +126,12 @@ class AICreatorApp{
 		if(!document.getElementById('mc-css')){const s=document.createElement('style');s.id='mc-css';s.textContent=CSS;document.head.appendChild(s);}
 		this.page.main.html(`
 <div class="mc">
-<span class="mc-toggle mc-toggle-side" id="mcSideToggle" title="Toggle conversations">◀</span>
+<div class="mc-center">
+<div class="mc-tabs" id="mcTabs"></div>
+<div id="mcPanels" style="flex:1;display:flex;flex-direction:column;min-height:0"></div>
+</div>
+<span class="mc-toggle mc-toggle-left" id="mcLeftToggle" title="Toggle sidebar">◀</span>
+<div class="mc-left-col" id="mcLeftCol">
 <div class="mc-side" id="mcSide">
 <div class="mc-side-hdr"><span class="t">Mubtkir AI Creator</span><i class="ti ti-bell" id="mcMute" style="font-size:15px;color:var(--mc-p);cursor:pointer" title="Sound on"></i></div>
 <button class="mc-new" id="mcNew"><i class="ti ti-plus"></i> New session</button>
@@ -136,27 +141,22 @@ class AICreatorApp{
 <div class="mc-more" id="mcMore"><button><i class="ti ti-chevron-down"></i> Show more</button></div>
 <div class="mc-less" id="mcLess"><button>Show less</button></div>
 </div>
-<div class="mc-center">
-<div class="mc-tabs" id="mcTabs"></div>
-<div id="mcPanels" style="flex:1;display:flex;flex-direction:column;min-height:0"></div>
-</div>
-<span class="mc-toggle mc-toggle-info" id="mcInfoToggle" title="Toggle info">▶</span>
 <div class="mc-info" id="mcInfo">
+</div>
 </div>
 </div>
 <div style="display:none;position:fixed;bottom:12px;z-index:1040;gap:6px" id="mcMobBtns">
 <button class="mc-ibtn" onclick="$('#mcSide').toggle()" style="width:40px;height:40px;background:#fff;border:0.5px solid var(--mc-bd);border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.1)"><i class="ti ti-menu-2"></i></button>
 <button class="mc-ibtn" onclick="$('#mcInfo').toggle()" style="width:40px;height:40px;background:#fff;border:0.5px solid var(--mc-bd);border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.1)"><i class="ti ti-info-circle"></i></button>
 </div>`);
-		this.$tabs=$('#mcTabs');this.$panels=$('#mcPanels');this.$side=$('#mcSide');this.$info=$('#mcInfo');
+		this.$tabs=$('#mcTabs');this.$panels=$('#mcPanels');this.$side=$('#mcSide');this.$info=$('#mcInfo');this.$leftCol=$('#mcLeftCol');
 		this.$convs=$('#mcConvs');this.filter='';this.convLimit=5;
 		$('#mcNew').on('click',()=>this.newTab());
 		$('#mcMute').on('click',()=>{this.soundOn=!this.soundOn;$('#mcMute').toggleClass('ti-bell ti-bell-off').attr('title',this.soundOn?'Sound on':'Sound off');});
 		$('#mcSearch').on('input',frappe.utils.debounce(()=>{this.convLimit=5;this.loadConvs();},300));
 		$('#mcMore button').on('click',()=>{this.convLimit+=5;this.loadConvs();});
 		$('#mcLess button').on('click',()=>{this.convLimit=5;this.loadConvs();});
-		$('#mcSideToggle').on('click',()=>{this.$side.toggleClass('collapsed');$('#mcSideToggle').text(this.$side.hasClass('collapsed')?'▶':'◀');});
-		$('#mcInfoToggle').on('click',()=>{this.$info.toggleClass('collapsed');$('#mcInfoToggle').text(this.$info.hasClass('collapsed')?'◀':'▶');});
+		$('#mcLeftToggle').on('click',()=>{this.$leftCol.toggleClass('collapsed');$('#mcLeftToggle').text(this.$leftCol.hasClass('collapsed')?'▶':'◀');});
 		if(window.innerWidth<=768)$('#mcMobBtns').css('display','flex');
 		this.loadConvs();this.newTab();
 	}
@@ -233,8 +233,40 @@ class Chat{
 		this.$input.on('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px';});
 	}
 	initClient(){this.clientCtrl=frappe.ui.form.make_control({df:{fieldtype:'Link',fieldname:'client_site',options:'AI Client Site',placeholder:'Search clients...',get_query:()=>({filters:{is_active:1}})},parent:this.$el.find('.ch-client-wrap'),render_input:true});this.clientCtrl.$wrapper.find('.like-disabled-input,.control-label,.help-box').hide();this.clientCtrl.$wrapper.css('margin-bottom','0');}
-	initMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){this.$el.find('.ch-mic').attr('title','Voice not supported in this browser').css('opacity','.3');return;}this.mic=new SR();this.mic.lang=frappe.boot.lang==='ar'?'ar-SA':'en-US';this.mic.interimResults=true;this.mic.continuous=false;this.mic.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;const cur=this.$input.val();this.$input.val(cur?cur+' '+t:t).trigger('input');};this.mic.onend=()=>{this.$el.find('.ch-mic').removeClass('rec');this.$el.find('.ch-mic i').removeClass('ti-player-stop').addClass('ti-microphone');};this.mic.onerror=e=>{this.$el.find('.ch-mic').removeClass('rec');this.$el.find('.ch-mic i').removeClass('ti-player-stop').addClass('ti-microphone');if(e.error==='not-allowed')frappe.msgprint('Microphone access denied. Allow microphone in browser settings for this site.');else if(e.error!=='aborted')frappe.msgprint('Voice error: '+e.error);};}
-	async toggleMic(){if(!this.mic)return;const $b=this.$el.find('.ch-mic');if($b.hasClass('rec')){this.mic.stop();return;}try{await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){frappe.msgprint('Microphone access denied. Allow microphone in browser settings for this site.');return;}$b.addClass('rec');$b.find('i').removeClass('ti-microphone').addClass('ti-player-stop');try{this.mic.start();}catch(e){$b.removeClass('rec');$b.find('i').removeClass('ti-player-stop').addClass('ti-microphone');frappe.msgprint('Could not start voice input: '+e.message);}}
+	initMic(){this.micSupported=!!(navigator.mediaDevices&&window.MediaRecorder);this.mediaRecorder=null;this.audioChunks=[];if(!this.micSupported){this.$el.find('.ch-mic').attr('title','Voice not supported in this browser').css('opacity','.3');}}
+	async toggleMic(){
+		if(!this.micSupported)return;
+		const $b=this.$el.find('.ch-mic');
+		if(this.mediaRecorder&&this.mediaRecorder.state==='recording'){this.mediaRecorder.stop();return;}
+		let stream;
+		try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
+		catch(e){frappe.msgprint('Microphone access denied. Allow microphone in browser settings for this site.');return;}
+		this.audioChunks=[];
+		const mimeType=window.MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'';
+		this.mediaRecorder=new MediaRecorder(stream,mimeType?{mimeType}:undefined);
+		this.mediaRecorder.ondataavailable=e=>{if(e.data&&e.data.size)this.audioChunks.push(e.data);};
+		this.mediaRecorder.onstop=()=>{
+			$b.removeClass('rec');$b.find('i').removeClass('ti-player-stop').addClass('ti-microphone');
+			stream.getTracks().forEach(t=>t.stop());
+			const blob=new Blob(this.audioChunks,{type:mimeType||'audio/webm'});
+			if(blob.size>500)this.sendAudio(blob);
+		};
+		try{this.mediaRecorder.start();}catch(e){frappe.msgprint('Could not start voice input: '+e.message);return;}
+		$b.addClass('rec');$b.find('i').removeClass('ti-microphone').addClass('ti-player-stop');
+	}
+	async sendAudio(blob){
+		const $b=this.$el.find('.ch-mic');$b.prop('disabled',true);
+		const fd=new FormData();fd.append('audio',blob,'voice.webm');
+		try{
+			const res=await fetch('/api/method/mubtkir_ai_creator.api.transcribe_audio',{method:'POST',headers:{'X-Frappe-CSRF-Token':frappe.csrf_token},body:fd});
+			const j=await res.json();
+			if(!res.ok)throw new Error('transcription failed');
+			const text=(j.message&&j.message.text)||'';
+			if(text){const cur=this.$input.val();this.$input.val(cur?cur+' '+text:text).trigger('input');}
+			else frappe.show_alert({message:'لم يُلتقط أي كلام',indicator:'orange'},3);
+		}catch(e){frappe.msgprint('تعذّر تفريغ الصوت — تحقق من ضبط مفتاح Whisper في AI Settings');}
+		finally{$b.prop('disabled',false);}
+	}
 	enable(){this.$input.prop('disabled',false);this.$el.find('.ch-send').prop('disabled',false);if(this.clientCtrl)this.clientCtrl.$input.prop('disabled',true);this.$el.find('#chClientBar').hide();this.$el.find('#chBtns').html('<button class="mc-hdr-btn end ch-end">End session</button>');this.$el.find('.ch-end').on('click',()=>this.endSession());this.updateHeader();}
 	disable(){this.$input.prop('disabled',true);this.$el.find('.ch-send').prop('disabled',true);this.$el.find('#chBtns').html('<span style="font-size:10px;color:#94a3b8">Session ended</span>');}
 	updateHeader(){const c=avatarColor(this.client);this.$el.find('#chAv').text(avatarLetter(this.client)).css('background',c);this.$el.find('#chNm').text(this.client||'Select a client');const tags=[];if(this.rtype)tags.push(`<span class="tag"><i class="ti ${typeIcon(this.rtype)}" style="font-size:11px"></i> ${this.rtype}</span>`);if(this.session)tags.push(`<span class="tag">${this.session}</span>`);this.$el.find('#chTags').html(tags.join(''));}

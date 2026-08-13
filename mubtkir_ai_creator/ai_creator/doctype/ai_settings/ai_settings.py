@@ -23,6 +23,15 @@ def get_llm_config():
     }
 
 
+def get_whisper_key():
+    """إرجاع مفتاح OpenAI الخاص بتفريغ الصوت (Whisper) بعد فك التشفير."""
+    doc = frappe.get_single("AI Settings")
+    key = doc.get_password("whisper_api_key", raise_exception=False)
+    if not key:
+        frappe.throw("لم يتم ضبط مفتاح OpenAI الخاص بالمايك (Whisper) في AI Settings")
+    return key
+
+
 def get_attachment_limits():
     doc = frappe.get_single("AI Settings")
     return {

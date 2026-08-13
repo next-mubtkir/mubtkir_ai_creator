@@ -16,6 +16,11 @@ const COLORS=['#3867AE','#0F84B5','#0BA1B8','#644DA6','#243B63','#0F84B5','#3867
 const avatarColor=name=>{let h=0;for(let i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return COLORS[Math.abs(h)%COLORS.length];};
 const avatarLetter=name=>(name||'?')[0].toUpperCase();
 
+const ICO_MIC='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
+const ICO_STOP='<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const ICO_CLIP='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+const ICO_SEND='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+
 const _beepSrc='data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2LkZeYl5OSjoeAeXJtaWZlZWZnam5ydHd6fICDh4qNj5GSkpGQj42LiYeEgX56d3RycHBwcXN1eHt+gYSHio2PkZOUlJSTkpCOjImGg4B9endzb21raWhoaGlrbXBzdnl9gISHi46RlJaYmZmYl5WTkY6LiIWBfnp2cm9saWhnaGhpam1wdHh8gISIjJCTlpmbnJycm5mXlZKPjImFgX56dnJuamhmZWRkZWdpbHB0eH2BhYqOkpaZnJ6fn5+enJqXlJGNiYWBfXl1cW1pZmRjYmJjZWhrcHR4fYKGi4+TmJueoKKioqGfnZqXk4+LhoJ9eXRwbGhkYmBfX2BhaGtvc3iBhYqPlJmdoKOlpaWkoqCdmZWRjIiDf3p2cWxoZGFfXl1eX2JlaW1xdn2BhoyRlpufoqWnp6emoqCcmJSPi4aDfnl0cGtnY19dXFtcXWBkaW1ydnyBhouQlZqeoqWoqamop6ShnpiUj4uGgXx3cm5qZmJfXVtaW1xeYWVpcHR5f4SJjpOYnaCkp6mpqainpKGdmZSPioWAe3ZxbGhjX1xaWVlZWl1gZGhscXZ8gYaLkJWanqKlqKqrq6qop6OgnJeTjoqFgHt2cWxnY19cWllYWFlaXGBkaW1ydnyBhoyRlpugoqaoq6urqqmmoqCcmJOOioWAe3Zxaw==';
 const _beep=new Audio(_beepSrc);_beep.volume=0.3;
 function playNotif(){try{_beep.currentTime=0;_beep.play().catch(()=>{});}catch(e){}}
@@ -51,10 +56,11 @@ const CSS=`
 .mc-more button{background:transparent;border:0.5px solid var(--mc-bd);border-radius:6px;padding:4px 14px;font-size:10px;cursor:pointer;color:var(--mc-s)}
 .mc-less{padding:4px;text-align:center;display:none}
 .mc-less button{background:transparent;border:none;font-size:10px;cursor:pointer;color:#94a3b8}
-.mc-tabs{display:flex;gap:3px;padding:5px 10px;border-bottom:0.5px solid var(--mc-bd);overflow-x:auto;flex-shrink:0}
-.mc-tab{padding:3px 10px;border-radius:12px;font-size:11px;cursor:pointer;white-space:nowrap;border:0.5px solid var(--mc-bd);display:flex;align-items:center;gap:4px}
-.mc-tab.on{background:var(--mc-p);color:#fff;border-color:var(--mc-p)}
-.mc-tab .x{font-size:9px;cursor:pointer;opacity:.6}.mc-tab .x:hover{opacity:1}
+.mc-tabs{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--mc-bd);overflow-x:auto;flex-shrink:0;background:#eef1f6}
+.mc-tab{padding:7px 16px;border-radius:8px 8px 0 0;font-size:13px;cursor:pointer;white-space:nowrap;border:1px solid var(--mc-bd);border-bottom:none;display:flex;align-items:center;gap:6px;background:#e2e7ee;color:#64748b;position:relative;top:1px}
+.mc-tab.on{background:#fff;color:var(--mc-t);font-weight:500;box-shadow:0 -1px 3px rgba(0,0,0,.04)}
+.mc-tab .x{font-size:12px;cursor:pointer;opacity:.5;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center}
+.mc-tab .x:hover{opacity:1;background:rgba(0,0,0,.08)}
 .mc-hdr{padding:10px 14px;border-bottom:0.5px solid var(--mc-bd);display:flex;align-items:center;gap:10px}
 .mc-hdr .av{width:34px;height:34px;border-radius:50%;background:var(--mc-p);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:500;font-size:13px;flex-shrink:0}
 .mc-hdr .info{flex:1}
@@ -94,12 +100,12 @@ const CSS=`
 .mc-ibar textarea:focus{border-color:var(--mc-p)}
 .mc-ibar-btns{display:flex;align-items:center;gap:2px;margin-top:6px;justify-content:space-between}
 .mc-ibar-left{display:flex;gap:1px}
-.mc-ibtn{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 8px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:9px;color:#94a3b8}
-.mc-ibtn i{font-size:18px;color:var(--mc-p)}
+.mc-ibtn{display:flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:6px;border:none;background:transparent;cursor:pointer;color:var(--mc-p)}
+.mc-ibtn svg{display:block}
 .mc-ibtn:hover{background:var(--mc-sf)}
 .mc-ibtn:disabled{opacity:.35;cursor:default}
-.mc-ibtn.rec i{color:#ef4444}
-.mc-send{padding:6px 14px;border-radius:8px;background:var(--mc-p);color:#fff;border:none;font-size:12px;font-weight:500;display:flex;align-items:center;gap:4px;cursor:pointer}
+.mc-ibtn.rec{color:#ef4444}
+.mc-send{padding:8px 14px;border-radius:8px;background:var(--mc-p);color:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .mc-send:hover{background:var(--mc-s)}
 .mc-send:disabled{opacity:.4;cursor:default}
 .mc-tpick{display:flex;flex-direction:column;gap:6px;padding:24px;align-items:center}
@@ -108,7 +114,7 @@ const CSS=`
 .mc-tpick-btn:hover{background:var(--mc-p);color:#fff;border-color:var(--mc-p)}
 .mc-tpick-btn:hover i{color:#fff}
 .mc-tpick-btn i{font-size:16px;color:var(--mc-p)}
-.mc-ip-hdr{padding:10px 12px;font-weight:500;font-size:12px;color:var(--mc-p);border-bottom:0.5px solid var(--mc-bd);display:flex;align-items:center;gap:4px}
+.mc-ip-hdr{padding:10px 12px;font-weight:500;font-size:12px;color:var(--mc-p);border-bottom:0.5px solid var(--mc-bd);display:flex;align-items:center;gap:4px;justify-content:flex-end}
 .mc-ip-row{display:flex;align-items:center;padding:6px 12px;gap:8px;font-size:11px}
 .mc-ip-row i{font-size:14px;color:var(--mc-p);width:16px;text-align:center;flex-shrink:0}
 .mc-ip-row .lbl{font-weight:500;flex:1}
@@ -159,6 +165,14 @@ class AICreatorApp{
 		$('#mcLeftToggle').on('click',()=>{this.$leftCol.toggleClass('collapsed');$('#mcLeftToggle').text(this.$leftCol.hasClass('collapsed')?'▶':'◀');});
 		if(window.innerWidth<=768)$('#mcMobBtns').css('display','flex');
 		this.loadConvs();this.newTab();
+		this.fitHeight();
+		$(window).on('resize.mcfit',()=>this.fitHeight());
+	}
+	fitHeight(){
+		const $mc=this.page.main.find('.mc');
+		if(!$mc.length)return;
+		const top=$mc[0].getBoundingClientRect().top;
+		$mc.css('height',`calc(100vh - ${Math.max(top,0)}px)`);
 	}
 	async loadConvs(){
 		const s=($('#mcSearch').val()||'').trim();
@@ -216,9 +230,9 @@ class Chat{
 <div class="mc-chips" id="chChips"></div>
 <div class="mc-ibar"><textarea class="ch-input" rows="1" placeholder="Type your message here..." disabled></textarea>
 <div class="mc-ibar-btns"><div class="mc-ibar-left">
-<div class="mc-ibtn ch-attach" title="Attach file"><i class="ti ti-paperclip"></i><span>Attach</span></div>
-<div class="mc-ibtn ch-mic" title="Voice input"><i class="ti ti-microphone"></i><span>Voice</span></div>
-</div><button class="mc-send ch-send" disabled><i class="ti ti-send"></i> Send</button></div>
+<div class="mc-ibtn ch-attach" title="Attach file">${ICO_CLIP}</div>
+<div class="mc-ibtn ch-mic" title="Voice input">${ICO_MIC}</div>
+</div><button class="mc-send ch-send" title="Send" disabled>${ICO_SEND}</button></div>
 <div class="mc-hint">Press Ctrl+Enter to send</div></div>`);
 		this.$msgs=this.$el.find('#chMsgs');this.$typing=this.$el.find('#chTyping');this.$input=this.$el.find('.ch-input');this.$reply=this.$el.find('#chReply');this.$chips=this.$el.find('#chChips');this.$pin=this.$el.find('#chPin');
 		this.$el.find('.ch-start').on('click',()=>this.startSession());
@@ -246,13 +260,13 @@ class Chat{
 		this.mediaRecorder=new MediaRecorder(stream,mimeType?{mimeType}:undefined);
 		this.mediaRecorder.ondataavailable=e=>{if(e.data&&e.data.size)this.audioChunks.push(e.data);};
 		this.mediaRecorder.onstop=()=>{
-			$b.removeClass('rec');$b.find('i').removeClass('ti-player-stop').addClass('ti-microphone');
+			$b.removeClass('rec');$b.html(ICO_MIC);
 			stream.getTracks().forEach(t=>t.stop());
 			const blob=new Blob(this.audioChunks,{type:mimeType||'audio/webm'});
 			if(blob.size>500)this.sendAudio(blob);
 		};
 		try{this.mediaRecorder.start();}catch(e){frappe.msgprint('Could not start voice input: '+e.message);return;}
-		$b.addClass('rec');$b.find('i').removeClass('ti-microphone').addClass('ti-player-stop');
+		$b.addClass('rec');$b.html(ICO_STOP);
 	}
 	async sendAudio(blob){
 		const $b=this.$el.find('.ch-mic');$b.prop('disabled',true);

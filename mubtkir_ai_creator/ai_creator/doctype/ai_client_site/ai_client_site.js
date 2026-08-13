@@ -133,7 +133,7 @@ frappe.ui.form.on('AI Client Site', {
         if (frm.is_new()) return;
         frm.add_custom_button(__('Capture All Customizations'), function() {
             frappe.confirm(
-                'Capture all Custom Fields, Property Setters, Print Formats, Client Scripts, and Server Scripts from this client?',
+                'Capture all Custom Fields, Property Setters, Print Formats, Client Scripts, Server Scripts, Custom HTML Blocks, and Workspaces from this client?',
                 function() {
                     frappe.call({
                         method: 'mubtkir_ai_creator.lib.templates.run_capture_all',

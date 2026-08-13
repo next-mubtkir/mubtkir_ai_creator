@@ -574,6 +574,10 @@ _STRIP_FOR_COPY = {
     "docstatus", "doctype", "naming_series",
 }
 
+# أنواع تُسمّى يدويًا لدى الموقع (autoname: Prompt) — إسقاط name عنها يجعل
+# الموقع الهدف يرفض الإنشاء بخطأ "يرجى تحديد اسم المستند"
+_PROMPT_NAMED_DOCTYPES = {"Custom HTML Block", "Workspace"}
+
 
 @tool(
     "duplicate_within_client",
@@ -594,6 +598,9 @@ def duplicate_within_client(client, doctype, name, new_name=None, overrides=None
     doc = client.get_doc(doctype, name).get("data") or {}
     if not doc:
         frappe.throw(f"لم يُعثر على «{name}» من نوع {doctype} لدى هذا العميل")
+
+    if doctype in _PROMPT_NAMED_DOCTYPES and not new_name:
+        frappe.throw(f"نوع «{doctype}» يُسمّى يدويًا — مرر new_name لاسم النسخة الجديدة")
 
     payload = {k: v for k, v in doc.items() if k not in _STRIP_FOR_COPY and v is not None}
     payload["doctype"] = doctype
@@ -665,6 +672,8 @@ def copy_between_clients(client, source_client, doctype, name, exclude_fields=No
     doc = source.get_doc(doctype, name).get("data") or {}
 
     strip = _STRIP_FOR_COPY | set(exclude_fields or [])
+    if doctype in _PROMPT_NAMED_DOCTYPES:
+        strip = strip - {"name"}  # يلزم تمرير الاسم صراحةً لهذه الأنواع
     payload = {k: v for k, v in doc.items() if k not in strip and v is not None}
     payload["doctype"] = doctype
 

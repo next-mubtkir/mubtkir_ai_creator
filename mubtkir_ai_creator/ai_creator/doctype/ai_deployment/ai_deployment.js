@@ -97,6 +97,8 @@ frappe.ui.form.on('AI Deployment', {
 			'Print Format': 'اسم الـ Print Format لدى العميل المصدر',
 			'Custom Field': 'اسم Custom Field لدى المصدر (مثل: Sales Invoice-contract_no)',
 			Settings: 'اسم DocType الإعدادات (مثل: Stock Settings)',
+			'Custom HTML Block': 'اسم الـ Custom HTML Block لدى العميل المصدر',
+			Workspace: 'اسم الـ Workspace لدى العميل المصدر',
 		};
 		frm.set_df_property('source_record', 'description', hints[frm.doc.deployment_type] || '');
 		frm.refresh_field('source_record');

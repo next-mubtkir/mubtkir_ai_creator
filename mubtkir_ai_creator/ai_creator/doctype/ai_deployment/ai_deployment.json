@@ -47,7 +47,7 @@
    "fieldname": "deployment_type",
    "fieldtype": "Select",
    "label": "نوع العملية",
-   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block",
+   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block\nWorkspace",
    "reqd": 1,
    "in_list_view": 1
   },
@@ -141,7 +141,7 @@
   {
    "fieldname": "targets_section",
    "fieldtype": "Section Break",
-   "label": "العملاء المستهدفون (بحد أقصى 10)"
+   "label": "العملاء المستهدفون"
   },
   {
    "fieldname": "targets",

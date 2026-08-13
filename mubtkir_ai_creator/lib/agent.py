@@ -239,6 +239,30 @@ def _mandatory_link_check(client, call):
     return "\n".join(lines)
 
 
+def _mandatory_duplicate_field_check(client, call):
+    """بوابة إلزامية: منع محاولة إنشاء Custom Field موجود فعلًا بدل فشل التنفيذ برسالة API خام."""
+    if call["name"] != "add_custom_field":
+        return None
+
+    args = call.get("input") or {}
+    dt = args.get("dt")
+    fieldname = args.get("fieldname")
+    if not dt or not fieldname:
+        return None
+
+    existing_name = f"{dt}-{fieldname}"
+    try:
+        client.get_doc("Custom Field", existing_name)
+    except Exception:
+        return None  # غير موجود — يُسمح بالإنشاء
+
+    return (
+        f"أُلغيت العملية قبل التنفيذ: يوجد حقل مخصص بالاسم «{fieldname}» في «{dt}» لدى هذا العميل مسبقًا "
+        f"({existing_name}). لتعديل قيمته استخدم update_document على Custom Field بهذا الاسم، أو اختر "
+        f"fieldname مختلفًا إن كان المطلوب حقلًا جديدًا فعلًا."
+    )
+
+
 def _execute_call(client, client_site, session_name, task_name, call):
     start = time.time()
     risk = tools.get_risk(call["name"])
@@ -247,7 +271,7 @@ def _execute_call(client, client_site, session_name, task_name, call):
     # طبقة دفاع ثانية: التحقق من صحة المعاملات مرة أخرى فور التنفيذ الفعلي
     # (مثلًا عند تنفيذ مهمة اعتُمدت سابقًا)، ثم البوابات الإلزامية المعتادة
     invalid = tools.validate_call(call["name"], call.get("input") or {})
-    blocked = invalid or _mandatory_required_check(client, call) or _mandatory_link_check(client, call)
+    blocked = invalid or _mandatory_required_check(client, call) or _mandatory_link_check(client, call) or _mandatory_duplicate_field_check(client, call)
     if blocked:
         log_action(
             client_site=client_site,

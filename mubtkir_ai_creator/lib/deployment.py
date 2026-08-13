@@ -1,7 +1,7 @@
 """النشر الجماعي: تطبيق عملية موحّدة على عدة عملاء مع معاينة توافق مسبقة.
 
 القيود المتعمّدة:
-- الأنواع المسموحة فقط: Print Format، Custom Field، Settings
+- الأنواع المسموحة فقط: Print Format، Custom Field، Settings، Custom HTML Block، Workspace
 - كل عميل يُنفَّذ عبر عميل REST مستقل ومقفل على موقعه
 - عند فشل عميل: يُسجَّل ويُكمَل الباقي
 - كل عملية تُسجَّل في AI Action Log كأي عملية أخرى
@@ -16,7 +16,20 @@ from frappe.utils import now_datetime
 from mubtkir_ai_creator.lib.agent import _dump, log_action
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
 
-ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings", "Custom HTML Block")
+ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings", "Custom HTML Block", "Workspace")
+
+# اسم الـ DocType الفعلي لدى الموقع، لكل نوع نشر يُقرأ منه/يُكتب إليه مباشرة
+# (Settings حالة خاصة: الاسم = اسم الـ DocType نفسه لأنه Single)
+TYPE_DOCTYPE = {
+    "Print Format": "Print Format",
+    "Custom Field": "Custom Field",
+    "Custom HTML Block": "Custom HTML Block",
+    "Workspace": "Workspace",
+}
+
+# أنواع تُسمّى يدويًا لدى الموقع (autoname: Prompt) — لازم نمرر name صراحةً
+# عند الإنشاء، وإلا يرفض الموقع الهدف الطلب بخطأ "يرجى تحديد اسم المستند"
+PROMPT_NAMED_TYPES = {"Custom HTML Block", "Workspace"}
 
 # الحقول التي لا تُنسخ أبدًا بين المواقع
 STRIP_FIELDS = {
@@ -61,7 +74,7 @@ def build_payload(dep):
     if dep.deployment_type == "Settings":
         doc = src.get_doc(dep.source_record, dep.source_record).get("data") or {}
     else:
-        doctype = "Print Format" if dep.deployment_type == "Print Format" else "Custom Field"
+        doctype = TYPE_DOCTYPE.get(dep.deployment_type, dep.deployment_type)
         doc = src.get_doc(doctype, dep.source_record).get("data") or {}
 
     if not doc:
@@ -78,6 +91,8 @@ def _identity(dep, payload):
         dt = dep.target_doctype or payload.get("dt")
         fieldname = payload.get("fieldname")
         return "Custom Field", f"{dt}-{fieldname}" if dt and fieldname else None
+    if dep.deployment_type in PROMPT_NAMED_TYPES:
+        return TYPE_DOCTYPE[dep.deployment_type], payload.get("name") or dep.source_record
     return dep.target_doctype, dep.target_doctype  # Settings: Single doctype
 
 
@@ -266,7 +281,7 @@ def _apply_to_target(dep, payload, client):
         out = client.update_doc(target_dt, target_name, data)
         return "Success", f"تم استبدال «{target_name}»", out
 
-    data.setdefault("name", target_name) if dep.deployment_type == "Print Format" else None
+    data.setdefault("name", target_name) if dep.deployment_type == "Print Format" or dep.deployment_type in PROMPT_NAMED_TYPES else None
     out = client.create_doc(target_dt, data)
     created = (out or {}).get("data", {}).get("name")
     return "Success", f"تم إنشاء «{created or target_name}»", out

@@ -52,7 +52,7 @@
    "fieldname": "request_type",
    "fieldtype": "Select",
    "label": "Request Type",
-   "options": "Support Request\nCustom Field / Print Format\nReport / Data Query\nImport / Export\nSettings Change\nClient Script\nServer Script\nPrint Format Design\nOther",
+   "options": "Support Request\nPrint Format\nCustom Field\nClient Script\nImport / Export\nServer Script\nCustom HTML Block\nWorkspace\nSettings Change\nReport / Data Query",
    "in_list_view": 1,
    "reqd": 0
   },

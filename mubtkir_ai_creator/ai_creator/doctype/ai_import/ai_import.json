@@ -6,7 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "title", "client_site", "column_break_1", "target_doctype", "status",
-  "file_section", "source_file", "column_break_2", "skip_invalid_rows",
+  "file_section", "source_file", "google_sheet_url", "column_break_2", "skip_invalid_rows",
   "analysis_section", "detected_columns", "analysis_notes", "column_break_3", "sample_rows",
   "mapping_section", "field_mapping", "column_break_4", "static_values",
   "preview_section", "preview_result",
@@ -22,7 +22,8 @@
   {"fieldname": "status", "fieldtype": "Select", "label": "الحالة", "options": "Draft\nMapping Ready\nPending Approval\nApproved\nQueued\nExecuting\nCompleted\nPartially Failed\nFailed", "default": "Draft", "read_only": 1, "in_list_view": 1},
 
   {"fieldname": "file_section", "fieldtype": "Section Break", "label": "الملف"},
-  {"fieldname": "source_file", "fieldtype": "Attach", "label": "ملف الاستيراد", "reqd": 1, "description": "xlsx أو csv — الورقة الأولى فقط، والصف الأول رؤوس الأعمدة"},
+  {"fieldname": "source_file", "fieldtype": "Attach", "label": "ملف الاستيراد", "description": "xlsx أو csv — الورقة الأولى فقط، والصف الأول رؤوس الأعمدة. اترك فارغًا لو مستخدم رابط Google Sheet بدلًا منه"},
+  {"fieldname": "google_sheet_url", "fieldtype": "Data", "label": "رابط Google Sheet", "description": "بديل عن رفع ملف — يجب أن تكون صلاحية المشاركة \"يمكن لأي شخص لديه الرابط العرض\"؛ يُقرأ الشيت الأول فقط، والصف الأول رؤوس الأعمدة"},
   {"fieldname": "column_break_2", "fieldtype": "Column Break"},
   {"fieldname": "skip_invalid_rows", "fieldtype": "Check", "label": "تخطّي الصفوف الفاشلة والمتابعة", "default": "1", "description": "غير مفعّل = يتوقف الاستيراد عند أول صف فاشل"},
 
@@ -33,7 +34,7 @@
   {"fieldname": "sample_rows", "fieldtype": "Code", "label": "عيّنة من الصفوف", "options": "JSON", "read_only": 1},
 
   {"fieldname": "mapping_section", "fieldtype": "Section Break", "label": "خريطة الحقول (قابلة للتعديل)"},
-  {"fieldname": "field_mapping", "fieldtype": "Code", "label": "الخريطة", "options": "JSON", "description": "{\"اسم العمود\": \"fieldname\"} — عدّلها يدويًا قبل المعاينة إن لزم"},
+  {"fieldname": "field_mapping", "fieldtype": "Table", "label": "الخريطة", "options": "AI Import Field Map", "description": "عدّل الحقل المقابل لكل عمود قبل المعاينة إن لزم — اتركه فارغًا لتجاهل العمود"},
   {"fieldname": "column_break_4", "fieldtype": "Column Break"},
   {"fieldname": "static_values", "fieldtype": "Code", "label": "قيم ثابتة لكل الصفوف", "options": "JSON", "description": "{\"item_group\": \"...\"} تُطبَّق على كل صف"},
 

@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_details",
   "title",
   "deployment_type",
   "column_break_1",
@@ -22,12 +23,14 @@
   "resolved_payload",
   "targets_section",
   "targets",
+  "tab_preview",
   "preview_section",
   "preview_summary",
   "approval_section",
   "approved_by",
   "column_break_3",
   "approved_on",
+  "tab_result",
   "result_section",
   "total_targets",
   "success_count",
@@ -36,6 +39,11 @@
   "skipped_count"
  ],
  "fields": [
+  {
+   "fieldname": "tab_details",
+   "fieldtype": "Tab Break",
+   "label": "التفاصيل"
+  },
   {
    "fieldname": "title",
    "fieldtype": "Data",
@@ -47,7 +55,7 @@
    "fieldname": "deployment_type",
    "fieldtype": "Select",
    "label": "نوع العملية",
-   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block\nWorkspace",
+   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier",
    "reqd": 1,
    "in_list_view": 1
   },
@@ -151,9 +159,13 @@
    "reqd": 1
   },
   {
-   "fieldname": "preview_section",
-   "fieldtype": "Section Break",
+   "fieldname": "tab_preview",
+   "fieldtype": "Tab Break",
    "label": "المعاينة"
+  },
+  {
+   "fieldname": "preview_section",
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "preview_summary",
@@ -184,9 +196,13 @@
    "read_only": 1
   },
   {
-   "fieldname": "result_section",
-   "fieldtype": "Section Break",
+   "fieldname": "tab_result",
+   "fieldtype": "Tab Break",
    "label": "النتيجة"
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "total_targets",

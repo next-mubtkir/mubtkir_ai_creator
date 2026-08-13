@@ -1,5 +1,7 @@
 """طبقة الأدوات: كل ما يستطيع النموذج تنفيذه. لا SQL ولا Python حر."""
 
+import json
+
 import frappe
 
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
@@ -648,7 +650,9 @@ def list_client_sites(client, search=None):
     "copy_between_clients",
     "high",
     "نسخ مستند أو تخصيص من حساب عميل إلى حساب عميل مختلف (يتطلب تفعيل السياسة في AI Settings وموافقة صريحة). "
-    "لا تستخدمها للتكرار داخل نفس العميل — استخدم duplicate_within_client لذلك",
+    "لا تستخدمها للتكرار داخل نفس العميل — استخدم duplicate_within_client لذلك. لأنواع التسمية اليدوية "
+    "(Custom HTML Block، Workspace) الاسم لدى الهدف يطابق الاسم لدى المصدر حرفيًا؛ إن كان موجودًا مسبقًا "
+    "لدى الهدف ستفشل العملية إلا إذا مررت overwrite=true بعد تأكيد صريح من المستخدم على الاستبدال.",
     {
         "type": "object",
         "properties": {
@@ -660,11 +664,16 @@ def list_client_sites(client, search=None):
                 "items": {"type": "string"},
                 "description": "حقول تُستبعد من النسخ (مثل الأسعار أو الحسابات المحاسبية)",
             },
+            "overwrite": {
+                "type": "boolean",
+                "default": False,
+                "description": "إن كان العنصر بنفس الاسم موجودًا مسبقًا لدى العميل الهدف: true يحدّثه بمحتوى المصدر، false (افتراضي) يوقف العملية بدل الكتابة فوقه بصمت",
+            },
         },
         "required": ["source_client", "doctype", "name"],
     },
 )
-def copy_between_clients(client, source_client, doctype, name, exclude_fields=None):
+def copy_between_clients(client, source_client, doctype, name, exclude_fields=None, overwrite=False):
     if not frappe.db.get_single_value("AI Settings", "allow_cross_client_copy"):
         frappe.throw("النسخ بين حسابات عملاء مختلفين غير مفعّل في AI Settings")
 
@@ -677,12 +686,197 @@ def copy_between_clients(client, source_client, doctype, name, exclude_fields=No
     payload = {k: v for k, v in doc.items() if k not in strip and v is not None}
     payload["doctype"] = doctype
 
+    if doctype in _PROMPT_NAMED_DOCTYPES:
+        target_name = payload.get("name") or name
+        exists = False
+        try:
+            client.get_doc(doctype, target_name)
+            exists = True
+        except Exception:
+            exists = False
+        if exists and not overwrite:
+            frappe.throw(
+                f"يوجد بالفعل «{target_name}» من نوع {doctype} لدى العميل الهدف. أعد الطلب مع overwrite=true "
+                f"بعد تأكيد صريح من المستخدم إن كان يريد استبدال المحتوى الحالي هناك."
+            )
+        if exists and overwrite:
+            return {
+                "source": {"client": source_client, "doctype": doctype, "name": name},
+                "updated": client.update_doc(doctype, target_name, payload).get("data"),
+            }
+
     return {
         "source": {"client": source_client, "doctype": doctype, "name": name},
         "created": client.create_doc(doctype, payload).get("data"),
     }
 
 
+
+
+@tool(
+    "capture_as_template",
+    "low",
+    "التقاط عنصر (تخصيص) من هذا العميل وحفظه كقالب (AI Template) قابل لإعادة الاستخدام أو النشر لاحقًا "
+    "على عملاء آخرين — نفس ما يفعله زر «التقاط تخصيص» بشاشة العميل، لكن من داخل المحادثة مباشرة. "
+    "الأنواع المدعومة: Custom Field، Property Setter، Print Format، Client Script، Server Script "
+    "(توثيق فقط، غير قابل للنشر)، Custom HTML Block، Workspace، Item، Customer، Supplier.",
+    {
+        "type": "object",
+        "properties": {
+            "artifact_type": {"type": "string"},
+            "name": {"type": "string", "description": "اسم العنصر لدى هذا العميل"},
+            "title": {"type": "string", "description": "عنوان اختياري للقالب"},
+        },
+        "required": ["artifact_type", "name"],
+    },
+)
+def capture_as_template(client, artifact_type, name, title=None):
+    from mubtkir_ai_creator.lib.templates import capture
+
+    return capture(client.name, artifact_type, name, title=title)
+
+
+@tool(
+    "create_bulk_deployment",
+    "high",
+    "إنشاء عملية نشر جماعي (AI Deployment) تنسخ عنصرًا من هذا العميل إلى عدة عملاء آخرين دفعة واحدة، "
+    "وتشغيل معاينة التوافق تلقائيًا. **لا تُنفَّذ العملية فعليًا هنا** — تبقى بحالة Pending Approval وتحتاج "
+    "اعتمادًا صريحًا من المستخدم عبر سجل AI Deployment نفسه قبل التنفيذ. استخدم list_client_sites أولًا "
+    "لتأكيد أسماء سجلات العملاء الهدف قبل تمريرها.",
+    {
+        "type": "object",
+        "properties": {
+            "artifact_type": {
+                "type": "string",
+                "description": "Print Format، Custom Field، Settings، Custom HTML Block، Workspace، Item، Customer، أو Supplier",
+            },
+            "source_record": {"type": "string", "description": "اسم العنصر لدى هذا العميل (المصدر)"},
+            "target_clients": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "أسماء سجلات AI Client Site الهدف",
+            },
+            "target_doctype": {"type": "string", "description": "مطلوب فقط لنوعي Custom Field أو Settings"},
+            "title": {"type": "string"},
+        },
+        "required": ["artifact_type", "source_record", "target_clients"],
+    },
+)
+def create_bulk_deployment(client, artifact_type, source_record, target_clients, target_doctype=None, title=None):
+    from mubtkir_ai_creator.lib.deployment import ALLOWED_TYPES
+    from mubtkir_ai_creator.lib.deployment import preview as deployment_preview
+
+    if artifact_type not in ALLOWED_TYPES:
+        frappe.throw(f"نوع نشر غير مدعوم: {artifact_type}")
+    if not target_clients:
+        frappe.throw("حدد عميلًا واحدًا على الأقل للنشر عليه")
+
+    dep = frappe.get_doc({
+        "doctype": "AI Deployment",
+        "title": title or f"{artifact_type}: {source_record}",
+        "deployment_type": artifact_type,
+        "source_mode": "نسخ من عميل",
+        "source_client": client.name,
+        "source_record": source_record,
+        "target_doctype": target_doctype,
+        "targets": [{"client_site": c} for c in target_clients],
+    })
+    dep.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    result = deployment_preview(dep.name)
+    return {
+        "deployment": dep.name,
+        "summary": result.get("summary"),
+        "note": "تم إنشاء عملية النشر وتشغيل معاينة التوافق (Pending Approval). التنفيذ الفعلي يحتاج اعتمادًا صريحًا من سجل AI Deployment.",
+    }
+
+
+@tool(
+    "undo_last_action",
+    "high",
+    "التراجع عن آخر تعديل ناجح على هذا العميل بإرجاع القيم كما كانت قبله (باستخدام value_before المحفوظ "
+    "في AI Action Log). يعمل فقط مع تعديلات المحتوى: update_document، update_print_format، "
+    "patch_print_format_html، patch_document_field. لا يعمل مع الإنشاء أو الحذف أو الاعتماد/الإلغاء "
+    "لأنها تحتاج عكسًا مختلفًا عن استرجاع القيم، وسيرفض التنفيذ برسالة واضحة إن طُلب على أحدها.",
+    {
+        "type": "object",
+        "properties": {
+            "action_log": {
+                "type": "string",
+                "description": "اسم سجل AI Action Log محدد للتراجع عنه (اختياري) — إن تُرك فارغًا يُستخدم آخر تعديل ناجح قابل للتراجع على هذا العميل",
+            },
+        },
+        "required": [],
+    },
+)
+def undo_last_action(client, action_log=None):
+    undoable = {"update_document", "update_print_format", "patch_print_format_html", "patch_document_field"}
+
+    if action_log:
+        log = frappe.get_doc("AI Action Log", action_log)
+        if log.client_site != client.name:
+            frappe.throw("سجل الإجراء هذا لا يخص هذا العميل")
+    else:
+        rows = frappe.get_all(
+            "AI Action Log",
+            filters={
+                "client_site": client.name,
+                "tool_name": ["in", list(undoable)],
+                "is_success": 1,
+                "value_before": ["is", "set"],
+            },
+            fields=["name"],
+            order_by="timestamp desc",
+            limit_page_length=1,
+        )
+        if not rows:
+            frappe.throw("لا يوجد إجراء قابل للتراجع مسجّل لهذا العميل")
+        log = frappe.get_doc("AI Action Log", rows[0].name)
+
+    if log.tool_name not in undoable:
+        frappe.throw(f"لا يمكن التراجع عن «{log.tool_name}» تلقائيًا — يحتاج تدخلًا يدويًا")
+    if not log.value_before:
+        frappe.throw("لا توجد قيمة سابقة محفوظة لهذا الإجراء")
+
+    args = json.loads(log.tool_input or "{}")
+    before = json.loads(log.value_before)
+    dt = args.get("doctype") or "Print Format"
+    nm = args.get("name")
+    if not nm:
+        frappe.throw("تعذّر تحديد اسم المستند من سجل الإجراء")
+
+    strip = {"name", "owner", "creation", "modified", "modified_by", "doctype", "docstatus", "idx"}
+    restore = {k: v for k, v in before.items() if k not in strip}
+    out = client.update_doc(dt, nm, restore)
+    return {"restored": {"doctype": dt, "name": nm}, "from_action_log": log.name, "result": out.get("data")}
+
+
+@tool(
+    "search_past_tasks",
+    "low",
+    "البحث في المهام (AI Task) السابقة لهذا العميل بوصف نصي تقريبي — يسمح للمستخدم يرجع لمهمة قديمة "
+    "بذكرها بالوصف بدل البحث اليدوي، مثل «المهمة اللي عدّلت فيها ضريبة القيمة المضافة الأسبوع اللي فات».",
+    {
+        "type": "object",
+        "properties": {
+            "search": {"type": "string", "description": "كلمات من نص الطلب أو الخطة للبحث عنها"},
+            "limit": {"type": "integer", "default": 10},
+        },
+        "required": ["search"],
+    },
+)
+def search_past_tasks(client, search, limit=10):
+    return frappe.get_all(
+        "AI Task",
+        filters={
+            "client_site": client.name,
+            "request_text": ["like", f"%{search}%"],
+        },
+        fields=["name", "request_text", "status", "creation"],
+        order_by="creation desc",
+        limit_page_length=min(limit, 20),
+    )
 
 
 # ---------------- أدوات Workspace ----------------

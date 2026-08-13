@@ -17,6 +17,9 @@ ARTIFACTS = {
     "Server Script": {"doctype": "Server Script", "deployable": False},
     "Custom HTML Block": {"doctype": "Custom HTML Block", "deployable": True},
     "Workspace": {"doctype": "Workspace", "deployable": True},
+    "Item": {"doctype": "Item", "deployable": True},
+    "Customer": {"doctype": "Customer", "deployable": True},
+    "Supplier": {"doctype": "Supplier", "deployable": True},
 }
 
 STRIP_FIELDS = {
@@ -41,6 +44,9 @@ def list_available(client_site, artifact_type, target_doctype=None, limit=100):
         "Server Script": (["name", "script_type", "reference_doctype", "disabled"], "reference_doctype"),
         "Custom HTML Block": (["name", "html", "private", "modified"], None),
         "Workspace": (["name", "label", "module", "public"], None),
+        "Item": (["name", "item_code", "item_name", "item_group", "disabled"], "item_group"),
+        "Customer": (["name", "customer_name", "customer_group", "disabled"], "customer_group"),
+        "Supplier": (["name", "supplier_name", "supplier_group", "disabled"], "supplier_group"),
     }
     fields, filter_key = field_map[artifact_type]
     filters = {filter_key: target_doctype} if target_doctype and filter_key else None

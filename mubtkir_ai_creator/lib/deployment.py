@@ -1,7 +1,7 @@
 """النشر الجماعي: تطبيق عملية موحّدة على عدة عملاء مع معاينة توافق مسبقة.
 
 القيود المتعمّدة:
-- الأنواع المسموحة فقط: Print Format، Custom Field، Settings، Custom HTML Block، Workspace
+- الأنواع المسموحة فقط: Print Format، Custom Field، Settings، Custom HTML Block، Workspace، Item، Customer، Supplier
 - كل عميل يُنفَّذ عبر عميل REST مستقل ومقفل على موقعه
 - عند فشل عميل: يُسجَّل ويُكمَل الباقي
 - كل عملية تُسجَّل في AI Action Log كأي عملية أخرى
@@ -16,7 +16,7 @@ from frappe.utils import now_datetime
 from mubtkir_ai_creator.lib.agent import _dump, log_action
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
 
-ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings", "Custom HTML Block", "Workspace")
+ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings", "Custom HTML Block", "Workspace", "Item", "Customer", "Supplier")
 
 # اسم الـ DocType الفعلي لدى الموقع، لكل نوع نشر يُقرأ منه/يُكتب إليه مباشرة
 # (Settings حالة خاصة: الاسم = اسم الـ DocType نفسه لأنه Single)
@@ -25,11 +25,18 @@ TYPE_DOCTYPE = {
     "Custom Field": "Custom Field",
     "Custom HTML Block": "Custom HTML Block",
     "Workspace": "Workspace",
+    "Item": "Item",
+    "Customer": "Customer",
+    "Supplier": "Supplier",
 }
 
 # أنواع تُسمّى يدويًا لدى الموقع (autoname: Prompt) — لازم نمرر name صراحةً
 # عند الإنشاء، وإلا يرفض الموقع الهدف الطلب بخطأ "يرجى تحديد اسم المستند"
 PROMPT_NAMED_TYPES = {"Custom HTML Block", "Workspace"}
+
+# أنواع تُسمّى تلقائيًا من قيمة حقل معيّن لديها (field-based autoname) —
+# نحدد اسم العنصر لدى الهدف من نفس الحقل بدل الاعتماد على target_doctype
+FIELD_NAMED_TYPES = {"Item": "item_code", "Customer": "customer_name", "Supplier": "supplier_name"}
 
 # الحقول التي لا تُنسخ أبدًا بين المواقع
 STRIP_FIELDS = {
@@ -93,6 +100,9 @@ def _identity(dep, payload):
         return "Custom Field", f"{dt}-{fieldname}" if dt and fieldname else None
     if dep.deployment_type in PROMPT_NAMED_TYPES:
         return TYPE_DOCTYPE[dep.deployment_type], payload.get("name") or dep.source_record
+    if dep.deployment_type in FIELD_NAMED_TYPES:
+        field = FIELD_NAMED_TYPES[dep.deployment_type]
+        return TYPE_DOCTYPE[dep.deployment_type], payload.get(field) or dep.source_record
     return dep.target_doctype, dep.target_doctype  # Settings: Single doctype
 
 

@@ -49,6 +49,43 @@ def read_rows(file_url):
     return headers, rows
 
 
+def read_rows_for_import(doc):
+    """يقرأ صفوف الاستيراد من ملف مرفوع أو من رابط Google Sheet — أيهما محدد."""
+    if doc.source_file:
+        return read_rows(doc.source_file)
+    if doc.google_sheet_url:
+        return _read_google_sheet_rows(doc.google_sheet_url)
+    frappe.throw("حدد ملف استيراد أو رابط Google Sheet")
+
+
+def _read_google_sheet_rows(sheet_url):
+    import re
+    import requests
+
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", sheet_url or "")
+    if not m:
+        frappe.throw("رابط Google Sheet غير صالح — لازم يكون بصيغة docs.google.com/spreadsheets/d/...")
+    sheet_id = m.group(1)
+    gid_match = re.search(r"[?#&]gid=(\d+)", sheet_url)
+    gid = gid_match.group(1) if gid_match else "0"
+
+    export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    try:
+        resp = requests.get(export_url, timeout=30)
+    except requests.RequestException as e:
+        frappe.throw(f"تعذّر الوصول لملف Google Sheet: {e}")
+
+    if resp.status_code != 200 or resp.text.lstrip().lower().startswith("<!doctype html"):
+        frappe.throw(
+            "تعذّر قراءة Google Sheet — تأكد أن صلاحية المشاركة \"يمكن لأي شخص لديه الرابط العرض\""
+        )
+
+    headers, rows = _read_csv_rows(resp.content)
+    if len(rows) > MAX_TOTAL_ROWS:
+        frappe.throw(f"الشيت يحتوي {len(rows)} صفًا — الحد الأقصى {MAX_TOTAL_ROWS}")
+    return headers, rows
+
+
 def _read_xlsx_rows(raw):
     from openpyxl import load_workbook
 
@@ -91,7 +128,7 @@ def _read_csv_rows(raw):
 
 def analyze(name):
     doc = frappe.get_doc("AI Import", name)
-    headers, rows = read_rows(doc.source_file)
+    headers, rows = read_rows_for_import(doc)
 
     if not headers:
         frappe.throw("لم يُعثر على رؤوس أعمدة في الملف")
@@ -146,7 +183,6 @@ def analyze(name):
 
     doc.db_set("detected_columns", json.dumps(headers, ensure_ascii=False))
     doc.db_set("sample_rows", json.dumps(sample, ensure_ascii=False, indent=2))
-    doc.db_set("field_mapping", json.dumps(parsed.get("mapping", {}), ensure_ascii=False, indent=2))
     doc.db_set("total_rows", len(rows))
     doc.db_set(
         "analysis_notes",
@@ -155,15 +191,29 @@ def analyze(name):
         f"{parsed.get('notes') or ''}",
     )
     doc.db_set("status", "Mapping Ready")
+
+    mapping = parsed.get("mapping") or {}
+    sample_lookup = sample[0] if sample else {}
+    doc.set("field_mapping", [])
+    for column in headers:
+        doc.append(
+            "field_mapping",
+            {
+                "source_column": column,
+                "target_fieldname": mapping.get(column, ""),
+                "sample_value": str(sample_lookup.get(column, ""))[:140],
+            },
+        )
+    doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"headers": headers, "total_rows": len(rows), "mapping": parsed.get("mapping", {}), "notes": parsed.get("notes")}
+    return {"headers": headers, "total_rows": len(rows), "mapping": mapping, "notes": parsed.get("notes")}
 
 
 # ---------------- تحويل الصفوف ----------------
 
 def _build_docs(doc, rows):
-    mapping = json.loads(doc.field_mapping or "{}")
+    mapping = {r.source_column: r.target_fieldname for r in (doc.field_mapping or []) if r.target_fieldname}
     statics = json.loads(doc.static_values or "{}")
 
     out = []
@@ -183,7 +233,7 @@ def _build_docs(doc, rows):
 
 def preview(name):
     doc = frappe.get_doc("AI Import", name)
-    _, rows = read_rows(doc.source_file)
+    _, rows = read_rows_for_import(doc)
     client = FrappeSiteClient(doc.client_site)
     prepared = _build_docs(doc, rows)
 
@@ -285,7 +335,7 @@ def enqueue_execute(name):
 def execute(name):
     started = time.time()
     doc = frappe.get_doc("AI Import", name)
-    _, rows = read_rows(doc.source_file)
+    _, rows = read_rows_for_import(doc)
     client = FrappeSiteClient(doc.client_site)
     prepared = _build_docs(doc, rows)
 

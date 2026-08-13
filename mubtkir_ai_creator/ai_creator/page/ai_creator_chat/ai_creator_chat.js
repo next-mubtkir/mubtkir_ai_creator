@@ -5,11 +5,11 @@ frappe.pages['ai-creator-chat'].on_page_load = function(wrapper) {
 };
 
 const TYPES=[
-	{id:'Support Request',icon:'ti-tool'},{id:'Custom Field / Print Format',icon:'ti-forms'},
-	{id:'Report / Data Query',icon:'ti-chart-bar'},{id:'Import / Export',icon:'ti-download'},
-	{id:'Settings Change',icon:'ti-settings'},{id:'Client Script',icon:'ti-code'},
-	{id:'Server Script',icon:'ti-server'},{id:'Print Format Design',icon:'ti-printer'},
-	{id:'Other',icon:'ti-clipboard'},
+	{id:'Support Request',icon:'ti-tool'},{id:'Print Format',icon:'ti-printer'},
+	{id:'Custom Field',icon:'ti-forms'},{id:'Client Script',icon:'ti-code'},
+	{id:'Import / Export',icon:'ti-download'},{id:'Server Script',icon:'ti-server'},
+	{id:'Custom HTML Block',icon:'ti-code-dots'},{id:'Workspace',icon:'ti-layout-dashboard'},
+	{id:'Settings Change',icon:'ti-settings'},{id:'Report / Data Query',icon:'ti-chart-bar'},
 ];
 const typeIcon=id=>(TYPES.find(t=>t.id===id)||{icon:'ti-clipboard'}).icon;
 const COLORS=['#3867AE','#0F84B5','#0BA1B8','#644DA6','#243B63','#0F84B5','#3867AE'];
@@ -110,7 +110,8 @@ const CSS=`
 .mc-send:disabled{opacity:.4;cursor:default}
 .mc-tpick{display:flex;flex-direction:column;gap:6px;padding:24px;align-items:center}
 .mc-tpick h4{color:var(--mc-t);margin-bottom:8px;font-size:14px;font-weight:500}
-.mc-tpick-btn{width:100%;max-width:260px;padding:9px 12px;border:0.5px solid var(--mc-bd);border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;background:#fff;transition:.15s}
+.mc-tpick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;direction:ltr;width:100%;max-width:520px}
+.mc-tpick-btn{padding:9px 12px;border:0.5px solid var(--mc-bd);border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;background:#fff;transition:.15s}
 .mc-tpick-btn:hover{background:var(--mc-p);color:#fff;border-color:var(--mc-p)}
 .mc-tpick-btn:hover i{color:#fff}
 .mc-tpick-btn i{font-size:16px;color:var(--mc-p)}
@@ -285,7 +286,7 @@ class Chat{
 	disable(){this.$input.prop('disabled',true);this.$el.find('.ch-send').prop('disabled',true);this.$el.find('#chBtns').html('<span style="font-size:10px;color:#94a3b8">Session ended</span>');}
 	updateHeader(){const c=avatarColor(this.client);this.$el.find('#chAv').text(avatarLetter(this.client)).css('background',c);this.$el.find('#chNm').text(this.client||'Select a client');const tags=[];if(this.rtype)tags.push(`<span class="tag"><i class="ti ${typeIcon(this.rtype)}" style="font-size:11px"></i> ${this.rtype}</span>`);if(this.session)tags.push(`<span class="tag">${this.session}</span>`);this.$el.find('#chTags').html(tags.join(''));}
 	async startSession(){const c=this.clientCtrl?this.clientCtrl.get_value():'';if(!c)return frappe.msgprint('Select a client first');this.client=c;this.$msgs.empty();this.showTypePicker();}
-	showTypePicker(){const $p=$('<div class="mc-tpick"></div>');$p.append('<h4>Select request type</h4>');TYPES.forEach(t=>{const $b=$(`<div class="mc-tpick-btn"><i class="ti ${t.icon}"></i><span>${t.id}</span></div>`);$b.on('click',()=>this.createSession(t.id));$p.append($b);});this.$msgs.html('').append($p);}
+	showTypePicker(){const $p=$('<div class="mc-tpick"></div>');$p.append('<h4>Select request type</h4>');const $g=$('<div class="mc-tpick-grid"></div>');TYPES.forEach(t=>{const $b=$(`<div class="mc-tpick-btn"><i class="ti ${t.icon}"></i><span>${t.id}</span></div>`);$b.on('click',()=>this.createSession(t.id));$g.append($b);});$p.append($g);this.$msgs.html('').append($p);}
 	async createSession(type){this.rtype=type;const r=await frappe.call('mubtkir_ai_creator.api.start_session',{client_site:this.client,request_type:type});this.session=r.message.session;this.status='Open';this.viewOnly=false;this.$msgs.empty();this.enable();this.addB('s',`Session started — Client: ${this.client} — Type: ${type}`);this.refreshInfo();this.app.loadConvs();this.hooks.onTitle&&this.hooks.onTitle(this.client);}
 	async resume(ses,client,title,status,rtype,reopen){this.session=ses;this.client=client;this.rtype=rtype;this.status=status;this.viewOnly=status!=='Open'&&!reopen;if(reopen&&status!=='Open'){await frappe.call('mubtkir_ai_creator.api.reopen_session',{session:ses});this.status='Open';this.viewOnly=false;}if(!this.viewOnly)this.enable();else{this.updateHeader();this.$el.find('#chClientBar').hide();this.$el.find('#chBtns').html('<span style="font-size:10px;color:#94a3b8">View only</span>');}this.hooks.onTitle&&this.hooks.onTitle(title||client);const r=await frappe.call('mubtkir_ai_creator.api.get_session_messages',{session:ses});this.$msgs.empty();this.addB('s',this.viewOnly?`Viewing session (read-only) — ${client}`:`Session resumed — ${client}`);(r.message||[]).forEach(m=>{const role=m.role==='user'?'u':'b';const txt=this.extractText(m.content);if(txt)this.addB(role,frappe.utils.escape_html(txt),txt);});this.loadPin();this.refreshInfo();}
 	extractText(c){if(typeof c==='string')return c;if(Array.isArray(c))return c.filter(b=>b.type==='text').map(b=>b.text).join('\n')||'';return '';}

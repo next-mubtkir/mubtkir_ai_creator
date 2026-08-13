@@ -163,7 +163,13 @@
    "read_only": 1
   }
  ],
- "links": [],
+ "links": [
+  {
+   "group": "التنفيذ",
+   "link_doctype": "AI Action Log",
+   "link_fieldname": "task"
+  }
+ ],
  "modified": "2026-01-01 00:00:00.000000",
  "module": "AI Creator",
  "name": "AI Task",

@@ -2,59 +2,32 @@ frappe.ui.form.on('AI Client Site', {
 	refresh: function (frm) {
 		if (frm.is_new()) return;
 
+		// ===== 1. فحص الاتصال =====
 		frm.add_custom_button(__('فحص الاتصال'), function () {
 			frm.dashboard.clear_headline();
 			frappe.dom.freeze(__('جارٍ فحص الاتصال...'));
-
 			frappe.call({
 				method: 'mubtkir_ai_creator.ai_creator.doctype.ai_client_site.ai_client_site.test_connection',
 				args: { name: frm.doc.name },
 				callback: function (r) {
 					frappe.dom.unfreeze();
-					const res = r.message || {};
-
-					if (res.status === 'Connected') {
-						frappe.show_alert(
-							{ message: __('تم الاتصال بنجاح — المستخدم: {0}', [res.user || '']), indicator: 'green' },
-							7
-						);
-					} else {
-						frappe.msgprint({
-							title: __('فشل الاتصال'),
-							indicator: 'red',
-							message: `<pre style="white-space:pre-wrap;direction:ltr;text-align:left;">${frappe.utils.escape_html(
-								res.error || 'خطأ غير معروف'
-							)}</pre>`,
-						});
-					}
 					frm.reload_doc();
+					const m = r.message || {};
+					frm.dashboard.set_headline_alert(
+						`<span class="indicator ${m.ok ? 'green' : 'red'}">${
+							m.ok
+								? 'متصل — Frappe ' + (m.frappe_version || '') + ' / ERPNext ' + (m.erpnext_version || '')
+								: 'فشل — ' + (m.error || '')
+						}</span>`
+					);
 				},
 				error: function () {
 					frappe.dom.unfreeze();
 				},
 			});
-		}).addClass('btn-primary');
+		});
 
-		// شريط حالة أعلى النموذج
-		const map = {
-			Connected: ['green', 'متصل'],
-			Failed: ['red', 'فشل الاتصال'],
-			Unknown: ['orange', 'لم يتم الفحص بعد'],
-		};
-		const s = map[frm.doc.status] || map.Unknown;
-		frm.dashboard.set_headline_alert(
-			`<span class="indicator ${s[0]}">${s[1]}${
-				frm.doc.last_connection_check ? ' — آخر فحص: ' + frappe.datetime.str_to_user(frm.doc.last_connection_check) : ''
-			}</span>`
-		);
-	},
-});
-
-// أزرار الالتقاط داخل نموذج العميل
-frappe.ui.form.on('AI Client Site', {
-	onload_post_render: function (frm) {
-		if (frm.is_new()) return;
-
+		// ===== 2. التقاط تخصيص واحد =====
 		frm.add_custom_button(__('التقاط تخصيص'), function () {
 			const d = new frappe.ui.Dialog({
 				title: __('التقاط تخصيص من هذا العميل'),
@@ -92,12 +65,8 @@ frappe.ui.form.on('AI Client Site', {
 						artifact_type: d.get_value('artifact_type'),
 						source_name: row.name,
 					},
-					callback: function (res) {
-						onDone(null, res.message);
-					},
-					error: function (err) {
-						onDone(err, null);
-					},
+					callback: function (res) { onDone(null, res.message); },
+					error: function (err) { onDone(err, null); },
 				});
 			}
 
@@ -121,11 +90,8 @@ frappe.ui.form.on('AI Client Site', {
 						const $btn = $(this);
 						$btn.prop('disabled', true);
 						captureOne(row, function (err, m) {
-							if (err) {
-								$btn.prop('disabled', false);
-								return;
-							}
-							$btn.replaceWith(`<span class="text-muted">تم — النسخة ${m.version}</span>`);
+							if (err) { $btn.prop('disabled', false); return; }
+							$btn.replaceWith('<span class="text-muted">تم — النسخة ' + (m.version || '') + '</span>');
 						});
 					});
 					$list.append($item);
@@ -142,9 +108,7 @@ frappe.ui.form.on('AI Client Site', {
 						target_doctype: d.get_value('target_doctype') || null,
 					},
 					freeze: true,
-					callback: function (r) {
-						renderResults(r.message || []);
-					},
+					callback: function (r) { renderResults(r.message || []); },
 				});
 			});
 
@@ -153,23 +117,15 @@ frappe.ui.form.on('AI Client Site', {
 				frappe.confirm(
 					__('التقاط كل العناصر المعروضة ({0}) كقوالب؟', [lastRows.length]),
 					function () {
-						let done = 0;
-						let failed = 0;
+						let done = 0, failed = 0;
 						frappe.dom.freeze(__('جارٍ الالتقاط...'));
 						const next = (i) => {
 							if (i >= lastRows.length) {
 								frappe.dom.unfreeze();
-								frappe.show_alert(
-									{ message: __('اكتمل — نجح {0}، فشل {1}', [done, failed]), indicator: failed ? 'orange' : 'green' },
-									6
-								);
+								frappe.show_alert({ message: __('اكتمل — نجح {0}، فشل {1}', [done, failed]), indicator: failed ? 'orange' : 'green' }, 6);
 								return;
 							}
-							captureOne(lastRows[i], function (err) {
-								if (err) failed++;
-								else done++;
-								next(i + 1);
-							});
+							captureOne(lastRows[i], function (err) { if (err) failed++; else done++; next(i + 1); });
 						};
 						next(0);
 					}
@@ -177,35 +133,29 @@ frappe.ui.form.on('AI Client Site', {
 			});
 
 			d.show();
-		});
+		}, __('Templates'));
+
+		// ===== 3. التقاط الكل =====
+		frm.add_custom_button(__('Capture All Customizations'), function () {
+			frappe.confirm(
+				'Capture all Custom Fields, Property Setters, Print Formats, Client Scripts, Server Scripts, Custom HTML Blocks, and Workspaces from this client?',
+				function () {
+					frappe.call({
+						method: 'mubtkir_ai_creator.lib.templates.run_capture_all',
+						args: { client_site: frm.doc.name },
+						freeze: true,
+						freeze_message: __('Capturing...'),
+						callback: function (r) {
+							const m = r.message || {};
+							frappe.msgprint({
+								title: __('Capture Complete'),
+								indicator: 'green',
+								message: 'Captured: ' + (m.captured || 0) + ' items. Errors: ' + ((m.errors || []).length),
+							});
+						},
+					});
+				}
+			);
+		}, __('Templates'));
 	},
-});
-
-
-// Capture All button
-frappe.ui.form.on('AI Client Site', {
-    refresh: function(frm) {
-        if (frm.is_new()) return;
-        frm.add_custom_button(__('Capture All Customizations'), function() {
-            frappe.confirm(
-                'Capture all Custom Fields, Property Setters, Print Formats, Client Scripts, Server Scripts, Custom HTML Blocks, and Workspaces from this client?',
-                function() {
-                    frappe.call({
-                        method: 'mubtkir_ai_creator.lib.templates.run_capture_all',
-                        args: { client_site: frm.doc.name },
-                        freeze: true,
-                        freeze_message: __('Capturing...'),
-                        callback: function(r) {
-                            const m = r.message || {};
-                            frappe.msgprint({
-                                title: __('Capture Complete'),
-                                indicator: 'green',
-                                message: `Captured: ${m.captured || 0} items. Errors: ${(m.errors || []).length}`,
-                            });
-                        },
-                    });
-                }
-            );
-        }, __('Templates'));
-    },
 });

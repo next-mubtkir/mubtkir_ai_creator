@@ -2,8 +2,90 @@ frappe.ui.form.on('AI Import', {
 	refresh: function (frm) {
 		load_target_doctype_options(frm);
 		if (frm.is_new()) return;
-		render_steps(frm);
-		render_errors_and_preview(frm);
+
+		const st = frm.doc.status;
+		const has_source = !!(frm.doc.source_file || frm.doc.google_sheet_url);
+
+		// ===== أزرار التنفيذ المرقّمة — تُعرض كأزرار Frappe عادية في الشريط العلوي =====
+		if (['Draft', 'Mapping Ready'].includes(st) && has_source) {
+			frm.add_custom_button(__('١. تحليل الملف'), function () {
+				frappe.dom.freeze(__('جارٍ قراءة الملف وبناء خريطة الحقول...'));
+				frappe.call({
+					method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.analyze',
+					args: { name: frm.doc.name },
+					callback: function () { frappe.dom.unfreeze(); frm.reload_doc(); },
+					error: function () { frappe.dom.unfreeze(); },
+				});
+			}, __('خطوات'));
+		}
+
+		if (['Mapping Ready', 'Pending Approval'].includes(st)) {
+			frm.add_custom_button(__('٢. معاينة'), function () {
+				frappe.dom.freeze(__('جارٍ فحص كل الصفوف...'));
+				frappe.call({
+					method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.run_preview',
+					args: { name: frm.doc.name },
+					callback: function () { frappe.dom.unfreeze(); frm.reload_doc(); },
+					error: function () { frappe.dom.unfreeze(); },
+				});
+			}, __('خطوات'));
+		}
+
+		if (st === 'Pending Approval') {
+			frm.add_custom_button(__('٣. اعتماد وتنفيذ'), function () {
+				frappe.confirm(
+					'<div dir="rtl">سيتم إنشاء <b>' + (frm.doc.valid_rows || 0) + '</b> مستند في حساب <b>' +
+					frappe.utils.escape_html(frm.doc.client_site || '') + '</b>.<br>' +
+					'صفوف بها مشاكل: <b>' + (frm.doc.invalid_rows || 0) + '</b> ' +
+					(frm.doc.skip_invalid_rows ? '(ستُتخطّى)' : '(سيتوقف الاستيراد عندها)') +
+					'<br><br><b>هل تريد المتابعة؟</b></div>',
+					function () {
+						frappe.call({
+							method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.approve_and_run',
+							args: { name: frm.doc.name },
+							callback: function () {
+								frm.reload_doc();
+								frappe.show_alert({ message: __('بدأ التنفيذ في الخلفية'), indicator: 'blue' }, 5);
+							},
+						});
+					}
+				);
+			}, __('خطوات'));
+		}
+
+		// ===== Map Columns =====
+		if (['Mapping Ready', 'Pending Approval'].includes(st)) {
+			frm.add_custom_button(__('Map Columns'), function () {
+				open_map_columns_dialog(frm);
+			});
+		}
+
+		// ===== تنزيل الفاشلة =====
+		if (['Completed', 'Partially Failed', 'Failed'].includes(st) && (frm.doc.failure_report || frm.doc.invalid_rows)) {
+			frm.add_custom_button(__('تنزيل الصفوف الفاشلة'), function () {
+				frappe.call({
+					method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.download_failure_rows',
+					args: { name: frm.doc.name },
+					freeze: true,
+					callback: function (r) {
+						const url = (r.message || {}).file_url;
+						if (url) window.open(url, '_blank');
+					},
+				});
+			});
+		}
+
+		// ===== شريط التقدّم أثناء التنفيذ =====
+		if (['Queued', 'Executing'].includes(st)) {
+			const total = frm.doc.total_rows || 1;
+			const done = frm.doc.processed_rows || 0;
+			const pct = Math.round((done / total) * 100);
+			frm.dashboard.add_progress(__('التنفيذ'), pct, __('تم معالجة {0} من {1}', [done, total]));
+			setTimeout(function () { frm.reload_doc(); }, 2000);
+		}
+
+		// ===== عرض الأخطاء والعينات بعد التحليل =====
+		render_import_sections(frm);
 	},
 
 	client_site: function (frm) {
@@ -11,11 +93,13 @@ frappe.ui.form.on('AI Import', {
 	},
 });
 
+
 function load_target_doctype_options(frm) {
 	if (!frm.doc.client_site) return;
 	frappe.call({
 		method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.get_client_doctypes',
 		args: { client_site: frm.doc.client_site },
+		async: false,
 		callback: function (r) {
 			frm.set_df_property('target_doctype', 'options', r.message || []);
 			frm.refresh_field('target_doctype');
@@ -23,165 +107,108 @@ function load_target_doctype_options(frm) {
 	});
 }
 
-// خطوات التنفيذ الثلاث معروضة كقائمة مرقّمة واحدة بمكان ثابت، بدل أزرار متفرقة بالشريط العلوي
-function render_steps(frm) {
-	const st = frm.doc.status;
-	const steps = [
-		{
-			key: 'analyze',
-			label: __('١. تحليل الملف'),
-			active: ['Draft', 'Mapping Ready'].includes(st) && !!frm.doc.source_file,
-			done: !['Draft'].includes(st),
-			run: () => run_analyze(frm),
-		},
-		{
-			key: 'preview',
-			label: __('٢. معاينة'),
-			active: ['Mapping Ready', 'Pending Approval'].includes(st),
-			done: ['Pending Approval', 'Approved', 'Queued', 'Executing', 'Completed', 'Partially Failed', 'Failed'].includes(st),
-			run: () => run_preview_step(frm),
-		},
-		{
-			key: 'execute',
-			label: __('٣. اعتماد وتنفيذ'),
-			active: st === 'Pending Approval',
-			done: ['Approved', 'Queued', 'Executing', 'Completed', 'Partially Failed', 'Failed'].includes(st),
-			run: () => run_execute(frm),
-		},
-	];
 
-	const $wrap = $('<div class="ai-import-steps" dir="rtl" style="display:flex;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-bg,#fafbfc)"></div>');
-	steps.forEach((s) => {
-		const color = s.done ? '#2ca87f' : s.active ? 'var(--primary)' : '#94a3b8';
-		const $btn = $(`
-			<button class="btn btn-sm" style="border:1px solid ${color};color:${s.active ? '#fff' : color};background:${s.active ? color : 'transparent'};flex:1" ${s.active ? '' : 'disabled'}>
-				${s.done ? '✓ ' : ''}${s.label}
-			</button>
-		`);
-		if (s.active) $btn.on('click', s.run);
-		$wrap.append($btn);
-	});
-
-	frm.dashboard.wrapper.find('.ai-import-steps').remove();
-	frm.dashboard.wrapper.prepend($wrap);
-
-	// متابعة التقدّم أثناء التنفيذ الخلفي — نبض واضح كل ثانيتين بدل قفزة كل 5 ثوانٍ
-	frm.dashboard.wrapper.find('.ai-import-progress').remove();
-	if (['Queued', 'Executing'].includes(st)) {
-		const total = frm.doc.total_rows || 1;
-		const done = frm.doc.processed_rows || 0;
-		const pct = ((done / total) * 100).toFixed(0);
-		const $prog = $(`
-			<div class="ai-import-progress" dir="rtl" style="margin:0 0 10px">
-				<div style="font-size:12px;color:#64748b;margin-bottom:4px">
-					<span class="ai-import-spinner">⏳</span> ${__('جارٍ التنفيذ')}: ${done} / ${total}
-				</div>
-				<div style="height:8px;border-radius:4px;background:#e5e9f0;overflow:hidden">
-					<div style="height:100%;width:${pct}%;background:var(--primary);transition:width .4s;background-image:linear-gradient(45deg,rgba(255,255,255,.2) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.2) 50%,rgba(255,255,255,.2) 75%,transparent 75%,transparent);background-size:16px 16px;animation:ai-import-stripes 1s linear infinite"></div>
-				</div>
-			</div>
-		`);
-		frm.dashboard.wrapper.find('.ai-import-steps').after($prog);
-		if (!$('#ai-import-stripes-style').length) {
-			$('head').append('<style id="ai-import-stripes-style">@keyframes ai-import-stripes{0%{background-position:0 0}100%{background-position:16px 0}}</style>');
-		}
-		setTimeout(() => frm.reload_doc(), 2000);
-	}
-
-	if (['Completed', 'Partially Failed', 'Failed'].includes(st) && (frm.doc.failure_report || frm.doc.invalid_rows)) {
-		frm.add_custom_button(__('نسخ تقرير الفشل'), function () {
-			frappe.utils.copy_to_clipboard(frm.doc.failure_report || '');
-			frappe.show_alert({ message: __('تم النسخ'), indicator: 'green' }, 3);
-		});
-		frm.add_custom_button(__('تنزيل الصفوف الفاشلة'), function () {
-			frappe.call({
-				method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.download_failure_rows',
-				args: { name: frm.doc.name },
-				freeze: true,
-				callback: function (r) {
-					const url = (r.message || {}).file_url;
-					if (url) window.open(url, '_blank');
-				},
-			});
-		});
-	}
-}
-
-// قسم "أخطاء وتحذيرات الملف" + قسم "المعاينة" بنفس أسلوب Data Import الأصلي بالنظام
-function render_errors_and_preview(frm) {
-	frm.dashboard.wrapper.find('.ai-import-errors, .ai-import-preview').remove();
+function render_import_sections(frm) {
+	// تنظيف أي عرض سابق
+	$(frm.fields_dict.analysis_notes && frm.fields_dict.analysis_notes.wrapper).closest('.frappe-control').siblings('.ai-import-custom').remove();
+	$('.ai-import-custom').remove();
 
 	const mappingRows = frm.doc.field_mapping || [];
 	if (!mappingRows.length) return;
 
-	const unmatched = mappingRows.filter((r) => !r.target_fieldname);
+	const $target = frm.fields_dict.mapping_section
+		? $(frm.fields_dict.mapping_section.wrapper)
+		: $(frm.body);
 
 	// --- Import File Errors and Warnings ---
+	const unmatched = mappingRows.filter(function (r) { return !r.target_fieldname; });
 	if (unmatched.length) {
-		const $err = $(`<div class="ai-import-errors" dir="ltr" style="margin:0 0 14px"><h4>${__('Import File Errors and Warnings')}</h4></div>`);
-		unmatched.forEach((r, i) => {
-			$err.append(`
-				<div style="margin:10px 0">
-					<b>COLUMN ${i + 1}</b> (${frappe.utils.escape_html(r.source_column)})<br>
-					<span style="color:#8d99a6">Cannot match column ${frappe.utils.escape_html(r.source_column)} with any field
-					${r.sample_value ? ' — example: ' + frappe.utils.escape_html(r.sample_value) : ''}</span>
-				</div>
-			`);
+		const $err = $('<div class="ai-import-custom" dir="ltr" style="margin:12px 0;padding:12px;border:1px solid #f0c0c0;border-radius:6px;background:#fef2f2"></div>');
+		$err.append('<h5 style="margin:0 0 8px;color:#b91c1c">Import File Errors and Warnings</h5>');
+		unmatched.forEach(function (r, i) {
+			$err.append(
+				'<div style="margin:8px 0"><b>COLUMN ' + (i + 1) + '</b> (' +
+				frappe.utils.escape_html(r.source_column) + ')<br>' +
+				'<span style="color:#6b7280">Cannot match column ' +
+				frappe.utils.escape_html(r.source_column) + ' with any field' +
+				(r.sample_value ? ' — example: ' + frappe.utils.escape_html(r.sample_value) : '') +
+				'</span></div>'
+			);
 		});
-		frm.dashboard.wrapper.find('.ai-import-steps').after($err);
+		$target.before($err);
 	}
 
-	// --- Preview ---
-	let sample = [];
-	try {
-		sample = JSON.parse(frm.doc.sample_rows || '[]');
-	} catch (e) {
-		sample = [];
-	}
-	if (!sample.length) return;
+	// --- Preview: 5-row sample table ---
+	var sample = [];
+	try { sample = JSON.parse(frm.doc.sample_rows || '[]'); } catch (e) { sample = []; }
+	if (sample.length) {
+		var headers = mappingRows.map(function (r) { return r.source_column; });
+		var $prev = $('<div class="ai-import-custom" dir="ltr" style="margin:12px 0"></div>');
+		$prev.append('<h5 style="margin:0 0 8px">Preview</h5>');
 
-	const $prev = $(`<div class="ai-import-preview" dir="ltr" style="margin:0 0 14px"><h4>${__('Preview')}</h4></div>`);
-	const $btns = $(`
-		<div style="display:flex;gap:8px;margin-bottom:10px">
-			<button class="btn btn-sm btn-default ai-map-columns">${__('Map Columns')}</button>
-			<button class="btn btn-sm btn-default ai-show-warnings">${__('Show Warnings')}</button>
-		</div>
-	`);
-	$prev.append($btns);
+		var $btns = $('<div style="display:flex;gap:8px;margin-bottom:8px"></div>');
+		var $mapBtn = $('<button class="btn btn-sm btn-default">Map Columns</button>');
+		var $warnBtn = $('<button class="btn btn-sm btn-default">Show Warnings</button>');
+		$mapBtn.on('click', function () { open_map_columns_dialog(frm); });
+		$warnBtn.on('click', function () { open_warnings_dialog(frm); });
+		$btns.append($mapBtn).append($warnBtn);
+		$prev.append($btns);
 
-	const headers = mappingRows.map((r) => r.source_column);
-	const $table = $('<div style="overflow-x:auto"><table class="table table-bordered" style="min-width:600px"></table></div>');
-	const $t = $table.find('table');
-	let thead = '<thead><tr><th>Sr.</th>';
-	headers.forEach((h) => {
-		const row = mappingRows.find((r) => r.source_column === h);
-		const warn = row && !row.target_fieldname ? ' ⚠️' : '';
-		thead += `<th>${frappe.utils.escape_html(h)}${warn}</th>`;
-	});
-	thead += '</tr></thead>';
-	let tbody = '<tbody>';
-	sample.forEach((row, i) => {
-		tbody += `<tr><td>${i + 1}</td>`;
-		headers.forEach((h) => {
-			tbody += `<td>${frappe.utils.escape_html(String(row[h] ?? ''))}</td>`;
+		var tableHtml = '<div style="overflow-x:auto"><table class="table table-bordered" style="min-width:600px;font-size:12px"><thead><tr><th>Sr.</th>';
+		headers.forEach(function (h) {
+			var row = mappingRows.find(function (r) { return r.source_column === h; });
+			var warn = (row && !row.target_fieldname) ? ' <span style="color:#dc2626" title="Unmapped">⚠</span>' : '';
+			tableHtml += '<th>' + frappe.utils.escape_html(h) + warn + '</th>';
 		});
-		tbody += '</tr>';
-	});
-	tbody += '</tbody>';
-	$t.html(thead + tbody);
-	$prev.append($table);
+		tableHtml += '</tr></thead><tbody>';
+		sample.forEach(function (row, i) {
+			tableHtml += '<tr><td>' + (i + 1) + '</td>';
+			headers.forEach(function (h) {
+				tableHtml += '<td>' + frappe.utils.escape_html(String(row[h] != null ? row[h] : '')) + '</td>';
+			});
+			tableHtml += '</tr>';
+		});
+		tableHtml += '</tbody></table></div>';
+		$prev.append(tableHtml);
+		$target.before($prev);
+	}
 
-	frm.dashboard.wrapper.find('.ai-import-errors').length
-		? frm.dashboard.wrapper.find('.ai-import-errors').after($prev)
-		: frm.dashboard.wrapper.find('.ai-import-steps').after($prev);
-
-	$btns.find('.ai-map-columns').on('click', () => open_map_columns_dialog(frm));
-	$btns.find('.ai-show-warnings').on('click', () => open_warnings_dialog(frm));
+	// --- Preview result summary (بعد المعاينة) ---
+	if (frm.doc.preview_result) {
+		try {
+			var parsed = JSON.parse(frm.doc.preview_result);
+			var $res = $('<div class="ai-import-custom" dir="rtl" style="margin:12px 0;padding:12px;border-radius:6px;background:#f0fdf4;border:1px solid #86efac"></div>');
+			$res.append('<b>' + frappe.utils.escape_html(parsed.summary || '') + '</b>');
+			var bad = parsed.invalid_links || {};
+			if (Object.keys(bad).length) {
+				var linkHtml = '<br><br><b>قيم ربط غير موجودة لدى العميل:</b><ul>';
+				for (var f in bad) {
+					linkHtml += '<li>' + frappe.utils.escape_html(f) + ': ' +
+						frappe.utils.escape_html((bad[f].values || []).slice(0, 8).join('، ')) +
+						'<br><small>المتاح: ' +
+						frappe.utils.escape_html((bad[f].available_options || []).slice(0, 8).join('، ')) +
+						'</small></li>';
+				}
+				linkHtml += '</ul>';
+				$res.append(linkHtml);
+			}
+			var issues = parsed.row_issues || [];
+			if (issues.length) {
+				$res.append('<br><b>أمثلة على الصفوف الفاشلة (أول 5):</b><ul>');
+				issues.slice(0, 5).forEach(function (it) {
+					$res.append('<li>صف ' + it.row + ': ' + frappe.utils.escape_html((it.issues || []).join('، ')) + '</li>');
+				});
+				$res.append('</ul>');
+			}
+			$target.before($res);
+		} catch (e) { /* ignore */ }
+	}
 }
 
+
 function open_map_columns_dialog(frm) {
-	if (!frm.doc.target_doctype) {
-		frappe.msgprint(__('حدد الـ DocType المستهدف أولًا'));
+	if (!frm.doc.client_site || !frm.doc.target_doctype) {
+		frappe.msgprint(__('حدد العميل والـ DocType المستهدف أولًا'));
 		return;
 	}
 	frappe.call({
@@ -189,111 +216,79 @@ function open_map_columns_dialog(frm) {
 		args: { client_site: frm.doc.client_site, target_doctype: frm.doc.target_doctype },
 		freeze: true,
 		callback: function (r) {
-			const fields = r.message || [];
-			const options = [''].concat(fields.map((f) => f.fieldname));
-			const labels = { '': __('— تجاهل —') };
-			fields.forEach((f) => (labels[f.fieldname] = `${f.label} (${f.fieldname})${f.reqd ? ' *' : ''}`));
+			var fields = r.message || [];
+			var optionsList = [''].concat(fields.map(function (f) { return f.fieldname; }));
+			var labels = { '': '— تجاهل —' };
+			fields.forEach(function (f) {
+				labels[f.fieldname] = f.label + ' (' + f.fieldname + ')' + (f.reqd ? ' *' : '');
+			});
 
-			const d = new frappe.ui.Dialog({
-				title: __('Map Columns'),
-				fields: (frm.doc.field_mapping || []).map((r, i) => ({
-					fieldname: `col_${i}`,
-					label: r.source_column,
+			var dialogFields = (frm.doc.field_mapping || []).map(function (row, i) {
+				return {
+					fieldname: 'col_' + i,
+					label: row.source_column + (row.sample_value ? '  [مثال: ' + row.sample_value.substring(0, 30) + ']' : ''),
 					fieldtype: 'Select',
-					options: options.map((o) => (o === '' ? '' : o)).join('\n'),
-					default: r.target_fieldname || '',
-				})),
+					options: optionsList.join('\n'),
+					default: row.target_fieldname || '',
+				};
+			});
+
+			var d = new frappe.ui.Dialog({
+				title: __('Map Columns'),
+				fields: dialogFields,
+				size: 'large',
 				primary_action_label: __('حفظ'),
 				primary_action: function (values) {
-					(frm.doc.field_mapping || []).forEach((row, i) => {
-						row.target_fieldname = values[`col_${i}`] || '';
+					(frm.doc.field_mapping || []).forEach(function (row, i) {
+						frappe.model.set_value(row.doctype, row.name, 'target_fieldname', values['col_' + i] || '');
 					});
 					frm.dirty();
-					frm.save().then(() => {
+					frm.save().then(function () {
 						d.hide();
-						render_errors_and_preview(frm);
+						frm.reload_doc();
 					});
 				},
 			});
-			// عرض التسميات الودّية بدل fieldname الخام داخل كل Select
-			d.fields_list.forEach((f, i) => {
+
+			// عرض التسميات الودّية
+			d.fields_list.forEach(function (f) {
 				if (f.df.fieldtype !== 'Select') return;
-				const $sel = f.$input;
+				var $sel = f.$input;
 				$sel.find('option').each(function () {
-					const val = $(this).val();
+					var val = $(this).val();
 					if (labels[val]) $(this).text(labels[val]);
 				});
 			});
+
 			d.show();
 		},
 	});
 }
 
+
 function open_warnings_dialog(frm) {
-	let parsed = {};
-	try {
-		parsed = JSON.parse(frm.doc.preview_result || '{}');
-	} catch (e) {
-		parsed = {};
-	}
-	const issues = parsed.row_issues || [];
-	const d = new frappe.ui.Dialog({ title: __('Show Warnings'), size: 'large', fields: [{ fieldname: 'html', fieldtype: 'HTML' }] });
+	var parsed = {};
+	try { parsed = JSON.parse(frm.doc.preview_result || '{}'); } catch (e) { parsed = {}; }
+	var issues = parsed.row_issues || [];
+
+	var d = new frappe.ui.Dialog({
+		title: __('Show Warnings'),
+		size: 'large',
+		fields: [{ fieldname: 'html', fieldtype: 'HTML' }],
+	});
+
 	if (!issues.length) {
-		d.fields_dict.html.$wrapper.html(`<div dir="rtl">${__('لا توجد تحذيرات — سوِّ المعاينة أولًا إن لم تظهر نتيجة')}</div>`);
+		d.fields_dict.html.$wrapper.html('<div dir="rtl">لا توجد تحذيرات — نفّذ المعاينة أولًا إن لم تظهر نتيجة</div>');
 	} else {
-		let html = `<div dir="rtl" style="max-height:400px;overflow:auto"><table class="table table-bordered"><thead><tr><th>${__('الصف')}</th><th>${__('المشاكل')}</th></tr></thead><tbody>`;
-		issues.forEach((it) => {
-			html += `<tr><td>${it.row}</td><td>${frappe.utils.escape_html((it.issues || []).join('، '))}</td></tr>`;
+		var html = '<div dir="rtl" style="max-height:400px;overflow:auto">' +
+			'<table class="table table-bordered"><thead><tr><th>الصف</th><th>المشاكل</th></tr></thead><tbody>';
+		issues.forEach(function (it) {
+			html += '<tr><td>' + it.row + '</td><td>' +
+				frappe.utils.escape_html((it.issues || []).join('، ')) + '</td></tr>';
 		});
 		html += '</tbody></table></div>';
 		d.fields_dict.html.$wrapper.html(html);
 	}
+
 	d.show();
-}
-
-function run_analyze(frm) {
-	frappe.dom.freeze(__('جارٍ قراءة الملف وبناء خريطة الحقول...'));
-	frappe.call({
-		method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.analyze',
-		args: { name: frm.doc.name },
-		callback: function () {
-			frappe.dom.unfreeze();
-			frm.reload_doc();
-		},
-		error: () => frappe.dom.unfreeze(),
-	});
-}
-
-function run_preview_step(frm) {
-	frappe.dom.freeze(__('جارٍ فحص كل الصفوف...'));
-	frappe.call({
-		method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.run_preview',
-		args: { name: frm.doc.name },
-		callback: function () {
-			frappe.dom.unfreeze();
-			frm.reload_doc();
-		},
-		error: () => frappe.dom.unfreeze(),
-	});
-}
-
-function run_execute(frm) {
-	frappe.confirm(
-		`<div dir="rtl">${__('سيتم إنشاء')} <b>${frm.doc.valid_rows}</b> ${__('مستند في حساب')} <b>${frappe.utils.escape_html(
-			frm.doc.client_site
-		)}</b>.<br>
-		${__('صفوف بها مشاكل')}: <b>${frm.doc.invalid_rows}</b> ${
-			frm.doc.skip_invalid_rows ? '(' + __('ستُتخطّى') + ')' : '(' + __('سيتوقف الاستيراد عندها') + ')'
-		}<br><br><b>${__('هل تريد المتابعة؟')}</b></div>`,
-		function () {
-			frappe.call({
-				method: 'mubtkir_ai_creator.ai_creator.doctype.ai_import.ai_import.approve_and_run',
-				args: { name: frm.doc.name },
-				callback: function () {
-					frm.reload_doc();
-					frappe.show_alert({ message: __('بدأ التنفيذ في الخلفية'), indicator: 'blue' }, 5);
-				},
-			});
-		}
-	);
 }

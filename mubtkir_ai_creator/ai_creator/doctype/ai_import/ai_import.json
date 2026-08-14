@@ -18,7 +18,7 @@
   {"fieldname": "title", "fieldtype": "Data", "label": "عنوان الاستيراد", "reqd": 1, "in_list_view": 1},
   {"fieldname": "client_site", "fieldtype": "Link", "label": "العميل", "options": "AI Client Site", "reqd": 1, "in_list_view": 1},
   {"fieldname": "column_break_1", "fieldtype": "Column Break"},
-  {"fieldname": "target_doctype", "fieldtype": "Data", "label": "الـ DocType المستهدف", "reqd": 1, "in_list_view": 1, "description": "مثال: Item أو Customer أو Supplier"},
+  {"fieldname": "target_doctype", "fieldtype": "Autocomplete", "label": "الـ DocType المستهدف", "reqd": 1, "in_list_view": 1, "description": "اختر من قائمة أنواع المستندات المتاحة فعليًا لدى هذا العميل"},
   {"fieldname": "status", "fieldtype": "Select", "label": "الحالة", "options": "Draft\nMapping Ready\nPending Approval\nApproved\nQueued\nExecuting\nCompleted\nPartially Failed\nFailed", "default": "Draft", "read_only": 1, "in_list_view": 1},
 
   {"fieldname": "file_section", "fieldtype": "Section Break", "label": "الملف"},

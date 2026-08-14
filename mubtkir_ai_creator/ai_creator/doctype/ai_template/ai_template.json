@@ -29,13 +29,13 @@
    "fieldtype": "Data",
    "label": "العنوان",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "in_global_search": 1
   },
   {
    "fieldname": "artifact_type",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "label": "النوع",
-   "options": "Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script\nCustom HTML Block",
    "reqd": 1,
    "in_list_view": 1,
    "read_only": 1
@@ -105,7 +105,8 @@
    "fieldtype": "Code",
    "label": "المحتوى (JSON)",
    "options": "JSON",
-   "read_only": 1
+   "read_only": 1,
+   "in_global_search": 1
   },
   {
    "fieldname": "meta_section",

@@ -31,6 +31,14 @@ def start_session(client_site, title=None, request_type=None):
     return {"session": doc.name, "client_site": doc.client_site, "request_type": doc.request_type}
 
 
+def _estimate_session_tokens(session):
+    """تقدير تقريبي لعدد Tokens المستهلكة بجلسة — ~3.5 حرف/توكن (متحفّظ للعربي)."""
+    doc = frappe.get_doc("AI Session", session)
+    msgs = doc.get_messages()
+    total_chars = sum(len(str(m.get("content", ""))) for m in msgs)
+    return int(total_chars / 3.5)
+
+
 @frappe.whitelist()
 def send_message(session, message, attachments=None):
     """إرسال رسالة للوكيل. الموقع المستهدف يُؤخذ من الجلسة وليس من نص الرسالة.
@@ -41,6 +49,17 @@ def send_message(session, message, attachments=None):
 
     frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
 
+    settings = frappe.get_single("AI Settings")
+    hard_cap = settings.session_token_hard_cap or 0
+    warn_at = settings.session_token_warning_at or 0
+    est_tokens = _estimate_session_tokens(session)
+
+    if hard_cap and est_tokens >= hard_cap:
+        frappe.throw(
+            f"تجاوزت هذه الجلسة السقف المسموح تقريبيًا ({est_tokens:,} / {hard_cap:,} Token تقديري). "
+            f"ابدأ جلسة جديدة لمتابعة العمل — الجلسات الطويلة جدًا تفقد الدقة وتزيد التكلفة."
+        )
+
     file_urls = attachments
     if isinstance(attachments, str):
         try:
@@ -48,7 +67,15 @@ def send_message(session, message, attachments=None):
         except ValueError:
             file_urls = [attachments] if attachments else []
 
-    return agent.run_turn(session, message, file_urls=file_urls or None)
+    result = agent.run_turn(session, message, file_urls=file_urls or None)
+
+    if warn_at and est_tokens >= warn_at and isinstance(result, dict) and result.get("type") == "message":
+        result["cost_warning"] = (
+            f"⚠️ هذه الجلسة طويلة نسبيًا (~{est_tokens:,} Token تقديري). "
+            f"يُفضّل بدء جلسة جديدة قريبًا للحفاظ على الدقة وتقليل التكلفة."
+        )
+
+    return result
 
 
 @frappe.whitelist()
@@ -88,12 +115,7 @@ def get_session_stats(session):
     msgs = doc.get_messages()
 
     tool_count = frappe.db.count("AI Action Log", {"session": session})
-
-    # Rough token estimation: ~4 chars per token for mixed Arabic/English
-    total_chars = sum(
-        len(str(m.get("content", ""))) for m in msgs
-    )
-    est_tokens = int(total_chars / 3.5)  # conservative for Arabic
+    est_tokens = _estimate_session_tokens(session)
 
     return {
         "session": doc.name,

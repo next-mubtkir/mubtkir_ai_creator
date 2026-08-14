@@ -263,6 +263,41 @@ def _mandatory_duplicate_field_check(client, call):
     )
 
 
+# أدوات مرتبطة صراحة بنوع طلب معيّن — منعًا لخلط النطاقات داخل نفس المحادثة
+# (مثلًا: محادثة Client Script يُطلب فيها تعديل Print Format). الأدوات العامة
+# (create/update/delete_document وغيرها) تبقى متاحة دائمًا لأنها تُستخدم عبر كل الأنواع.
+TYPE_RESTRICTED_TOOLS = {
+    "patch_print_format_html": {"Print Format"},
+    "update_print_format": {"Print Format"},
+    "add_custom_field": {"Custom Field"},
+    "list_workspaces": {"Workspace", "Custom HTML Block"},
+    "get_workspace_content": {"Workspace", "Custom HTML Block"},
+    "add_workspace_shortcut": {"Workspace"},
+    "add_workspace_link": {"Workspace"},
+    "add_workspace_block": {"Workspace"},
+    "list_custom_blocks": {"Workspace", "Custom HTML Block"},
+    "copy_between_clients": {"Transfer from Templates"},
+    "create_bulk_deployment": {"Transfer from Templates"},
+    "capture_as_template": {"Transfer from Templates"},
+    "duplicate_within_client": {"Transfer from Templates"},
+    "search_templates": {"Transfer from Templates"},
+}
+
+
+def _mandatory_request_type_check(session_name, call):
+    allowed_types = TYPE_RESTRICTED_TOOLS.get(call["name"])
+    if not allowed_types:
+        return None
+    rtype = frappe.db.get_value("AI Session", session_name, "request_type")
+    if rtype in allowed_types:
+        return None
+    return (
+        f"هذا الطلب يحتاج محادثة جديدة: أداة «{call['name']}» مخصصة لنوع الطلب "
+        f"«{'، '.join(sorted(allowed_types))}»، وهذه المحادثة من نوع «{rtype or 'غير محدد'}». "
+        f"اطلب من المستخدم بدء محادثة جديدة بنوع الطلب المناسب بدل تنفيذ هذا هنا."
+    )
+
+
 def _execute_call(client, client_site, session_name, task_name, call):
     start = time.time()
     risk = tools.get_risk(call["name"])
@@ -271,7 +306,13 @@ def _execute_call(client, client_site, session_name, task_name, call):
     # طبقة دفاع ثانية: التحقق من صحة المعاملات مرة أخرى فور التنفيذ الفعلي
     # (مثلًا عند تنفيذ مهمة اعتُمدت سابقًا)، ثم البوابات الإلزامية المعتادة
     invalid = tools.validate_call(call["name"], call.get("input") or {})
-    blocked = invalid or _mandatory_required_check(client, call) or _mandatory_link_check(client, call) or _mandatory_duplicate_field_check(client, call)
+    blocked = (
+        invalid
+        or _mandatory_required_check(client, call)
+        or _mandatory_link_check(client, call)
+        or _mandatory_duplicate_field_check(client, call)
+        or _mandatory_request_type_check(session_name, call)
+    )
     if blocked:
         log_action(
             client_site=client_site,

@@ -879,6 +879,26 @@ def search_past_tasks(client, search, limit=10):
     )
 
 
+@tool(
+    "search_templates",
+    "low",
+    "بحث نصي كامل في القوالب المحفوظة (AI Template) — يبحث بعنوان القالب وأيضًا داخل محتواه (JSON) وملاحظاته، "
+    "مو بالعنوان فقط. استخدمها للعثور على قالب لنقله لعميل آخر لو المستخدم وصفه بدل ذكر اسمه بالضبط.",
+    {
+        "type": "object",
+        "properties": {
+            "search": {"type": "string", "description": "كلمات للبحث عنها بالعنوان أو المحتوى أو الملاحظات"},
+            "limit": {"type": "integer", "default": 10},
+        },
+        "required": ["search"],
+    },
+)
+def search_templates(client, search, limit=10):
+    from mubtkir_ai_creator.lib.templates import search_templates as _search
+
+    return _search(search, limit=limit)
+
+
 # ---------------- أدوات Workspace ----------------
 
 @tool(

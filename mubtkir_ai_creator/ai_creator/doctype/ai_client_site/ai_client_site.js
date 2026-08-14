@@ -62,16 +62,76 @@ frappe.ui.form.on('AI Client Site', {
 					{
 						fieldname: 'artifact_type',
 						label: __('النوع'),
-						fieldtype: 'Select',
-						options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier',
+						fieldtype: 'Autocomplete',
 						reqd: 1,
 						default: 'Print Format',
 					},
 					{ fieldname: 'target_doctype', label: __('حصر بـ DocType (اختياري)'), fieldtype: 'Data' },
 					{ fieldname: 'load', label: __('استعراض المتاح'), fieldtype: 'Button' },
+					{ fieldname: 'select_all', label: __('تحديد الكل'), fieldtype: 'Button', hidden: 1 },
 					{ fieldname: 'results', fieldtype: 'HTML' },
 				],
 			});
+
+			frappe.call({
+				method: 'mubtkir_ai_creator.lib.templates.run_list_artifact_types',
+				args: { client_site: frm.doc.name },
+				callback: function (r) {
+					d.fields_dict.artifact_type.df.options = r.message || [];
+					d.fields_dict.artifact_type.refresh();
+				},
+			});
+
+			let lastRows = [];
+
+			function captureOne(row, onDone) {
+				frappe.call({
+					method: 'mubtkir_ai_creator.lib.templates.run_capture',
+					args: {
+						client_site: frm.doc.name,
+						artifact_type: d.get_value('artifact_type'),
+						source_name: row.name,
+					},
+					callback: function (res) {
+						onDone(null, res.message);
+					},
+					error: function (err) {
+						onDone(err, null);
+					},
+				});
+			}
+
+			function renderResults(rows) {
+				lastRows = rows;
+				if (!rows.length) {
+					d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا النوع</div>');
+					d.set_df_property('select_all', 'hidden', 1);
+					return;
+				}
+				d.set_df_property('select_all', 'hidden', 0);
+				const $list = $('<div dir="rtl" style="max-height:300px;overflow:auto;"></div>');
+				rows.forEach((row) => {
+					const $item = $(`
+						<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);">
+							<span>${frappe.utils.escape_html(row.name)}</span>
+							<button class="btn btn-xs btn-default">التقاط</button>
+						</div>
+					`);
+					$item.find('button').on('click', function () {
+						const $btn = $(this);
+						$btn.prop('disabled', true);
+						captureOne(row, function (err, m) {
+							if (err) {
+								$btn.prop('disabled', false);
+								return;
+							}
+							$btn.replaceWith(`<span class="text-muted">تم — النسخة ${m.version}</span>`);
+						});
+					});
+					$list.append($item);
+				});
+				d.fields_dict.results.$wrapper.empty().append($list);
+			}
 
 			d.fields_dict.load.$input.on('click', function () {
 				frappe.call({
@@ -83,42 +143,37 @@ frappe.ui.form.on('AI Client Site', {
 					},
 					freeze: true,
 					callback: function (r) {
-						const rows = r.message || [];
-						if (!rows.length) {
-							d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا النوع</div>');
-							return;
-						}
-						const $list = $('<div dir="rtl" style="max-height:300px;overflow:auto;"></div>');
-						rows.forEach((row) => {
-							const $item = $(`
-								<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);">
-									<span>${frappe.utils.escape_html(row.name)}</span>
-									<button class="btn btn-xs btn-default">التقاط</button>
-								</div>
-							`);
-							$item.find('button').on('click', function () {
-								frappe.call({
-									method: 'mubtkir_ai_creator.lib.templates.run_capture',
-									args: {
-										client_site: frm.doc.name,
-										artifact_type: d.get_value('artifact_type'),
-										source_name: row.name,
-									},
-									freeze: true,
-									callback: function (res) {
-										const m = res.message || {};
-										frappe.show_alert(
-											{ message: __('تم الالتقاط — النسخة {0}', [m.version]), indicator: 'green' },
-											5
-										);
-									},
-								});
-							});
-							$list.append($item);
-						});
-						d.fields_dict.results.$wrapper.empty().append($list);
+						renderResults(r.message || []);
 					},
 				});
+			});
+
+			d.fields_dict.select_all.$input.on('click', function () {
+				if (!lastRows.length) return;
+				frappe.confirm(
+					__('التقاط كل العناصر المعروضة ({0}) كقوالب؟', [lastRows.length]),
+					function () {
+						let done = 0;
+						let failed = 0;
+						frappe.dom.freeze(__('جارٍ الالتقاط...'));
+						const next = (i) => {
+							if (i >= lastRows.length) {
+								frappe.dom.unfreeze();
+								frappe.show_alert(
+									{ message: __('اكتمل — نجح {0}، فشل {1}', [done, failed]), indicator: failed ? 'orange' : 'green' },
+									6
+								);
+								return;
+							}
+							captureOne(lastRows[i], function (err) {
+								if (err) failed++;
+								else done++;
+								next(i + 1);
+							});
+						};
+						next(0);
+					}
+				);
 			});
 
 			d.show();

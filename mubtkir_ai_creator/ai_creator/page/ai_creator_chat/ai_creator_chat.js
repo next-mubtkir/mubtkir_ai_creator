@@ -10,8 +10,24 @@ const TYPES=[
 	{id:'Import / Export',icon:'ti-download'},{id:'Server Script',icon:'ti-server'},
 	{id:'Custom HTML Block',icon:'ti-code-dots'},{id:'Workspace',icon:'ti-layout-dashboard'},
 	{id:'Settings Change',icon:'ti-settings'},{id:'Report / Data Query',icon:'ti-chart-bar'},
+	{id:'Transfer from Templates',icon:'ti-copy'},
 ];
 const typeIcon=id=>(TYPES.find(t=>t.id===id)||{icon:'ti-clipboard'}).icon;
+
+const QUICK_PROMPTS={
+	'Print Format': ['أضف حقل ضريبة القيمة المضافة لطباعة الفاتورة','عدّل شعار الشركة في الطباعة','أضف رقم الجوال بجانب اسم العميل'],
+	'Custom Field': ['أضف حقل رقم الضمان لفاتورة المبيعات','أضف حقل ملاحظات داخلية للطلبات'],
+	'Client Script': ['اجعل الحقل إجباري عند تحقق شرط معيّن','أخفِ حقل معيّن حسب نوع العميل'],
+	'Server Script': ['وثّق منطق حساب مبلغ معيّن قبل الحفظ'],
+	'Custom HTML Block': ['التقط هذا الـ Custom HTML Block كقالب'],
+	'Workspace': ['أضف اختصارًا جديدًا لهذا الـ Workspace'],
+	'Settings Change': ['فعّل خيار معيّن بإعدادات المخزون'],
+	'Report / Data Query': ['اعرض أكثر 10 عملاء مبيعًا هذا الشهر'],
+	'Import / Export': ['ساعدني أفهم لماذا فشل استيراد ملف الأصناف'],
+	'Transfer from Templates': ['انقل هذا القالب لعميل آخر'],
+	'Support Request': ['ليش فشلت آخر عملية نفّذتها؟'],
+};
+
 const COLORS=['#3867AE','#0F84B5','#0BA1B8','#644DA6','#243B63','#0F84B5','#3867AE'];
 const avatarColor=name=>{let h=0;for(let i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return COLORS[Math.abs(h)%COLORS.length];};
 const avatarLetter=name=>(name||'?')[0].toUpperCase();
@@ -28,13 +44,14 @@ function playNotif(){try{_beep.currentTime=0;_beep.play().catch(()=>{});}catch(e
 const CSS=`
 :root{--mc-p:#3867AE;--mc-s:#0F84B5;--mc-a:#0BA1B8;--mc-pu:#644DA6;--mc-t:#243B63;--mc-bd:rgba(56,103,174,.15);--mc-sf:rgba(56,103,174,.05)}
 *{box-sizing:border-box}
-.mc{font-family:Inter,-apple-system,sans-serif;color:var(--mc-t);height:calc(100vh - 60px);display:flex;direction:rtl}
-.mc-left-col{width:250px;min-width:200px;border-right:0.5px solid var(--mc-bd);display:flex;flex-direction:column;background:#fafbfd;position:relative;transition:margin .2s;overflow:hidden}
-.mc-left-col.collapsed{margin-left:-250px;min-width:0;width:0;border:none}
+.mc{font-family:Inter,-apple-system,sans-serif;color:var(--mc-t);height:calc(100vh - 60px);display:flex;direction:rtl;position:relative}
+.mc-left-col{width:clamp(230px,18vw,320px);min-width:200px;border-right:0.5px solid var(--mc-bd);display:flex;flex-direction:column;background:#fafbfd;position:relative;transition:margin .2s;overflow:hidden}
+.mc-left-col.collapsed{margin-left:-320px;min-width:0;width:0;border:none}
 .mc-side{flex:1 1 55%;min-height:120px;display:flex;flex-direction:column;overflow:hidden;border-bottom:0.5px solid var(--mc-bd)}
 .mc-center{flex:1;display:flex;flex-direction:column;min-width:0;background:#fff}
 .mc-info{flex:1 1 45%;min-height:100px;display:flex;flex-direction:column;overflow-y:auto;background:#fafbfd}
-.mc-toggle{width:24px;height:24px;border-radius:50%;border:0.5px solid var(--mc-bd);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;z-index:5;flex-shrink:0;align-self:center}
+.mc-toggle{width:26px;height:26px;border-radius:50%;border:0.5px solid var(--mc-bd);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;z-index:20;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.mc-toggle-left{position:absolute;top:10px;left:10px}
 .mc-side-hdr{padding:10px 12px;display:flex;align-items:center;gap:6px;border-bottom:0.5px solid var(--mc-bd)}
 .mc-side-hdr .t{font-weight:500;font-size:14px;color:var(--mc-p);flex:1}
 .mc-new{margin:8px;padding:8px;border-radius:8px;background:var(--mc-p);color:#fff;border:none;font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
@@ -76,6 +93,7 @@ const CSS=`
 .mc-bbl.u{background:var(--mc-p);color:#fff;align-self:flex-start;border-bottom-right-radius:3px}
 .mc-bbl.b{background:#f4f6f9;align-self:flex-end;border-bottom-left-radius:3px}
 .mc-bbl.s{background:transparent;color:#94a3b8;font-size:10px;text-align:center;align-self:center}
+.mc-bbl.w{background:#fffbeb;border:0.5px solid #fcd34d;color:#92400e;font-size:11px;text-align:center;align-self:center}
 .mc-bbl.e{background:#fef2f2;border:0.5px solid #fca5a5;align-self:flex-end}
 .mc-bbl .tm{font-size:9px;margin-top:3px;opacity:.6}
 
@@ -110,11 +128,11 @@ const CSS=`
 .mc-send:disabled{opacity:.4;cursor:default}
 .mc-tpick{display:flex;flex-direction:column;gap:6px;padding:24px;align-items:center}
 .mc-tpick h4{color:var(--mc-t);margin-bottom:8px;font-size:14px;font-weight:500}
-.mc-tpick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;direction:ltr;width:100%;max-width:520px}
-.mc-tpick-btn{padding:9px 12px;border:0.5px solid var(--mc-bd);border-radius:8px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;background:#fff;transition:.15s}
+.mc-tpick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;direction:ltr;width:100%;max-width:600px}
+.mc-tpick-btn{padding:12px 16px;border:0.5px solid var(--mc-bd);border-radius:8px;cursor:pointer;font-size:15px;display:flex;align-items:center;gap:10px;background:#fff;transition:.15s}
 .mc-tpick-btn:hover{background:var(--mc-p);color:#fff;border-color:var(--mc-p)}
 .mc-tpick-btn:hover i{color:#fff}
-.mc-tpick-btn i{font-size:16px;color:var(--mc-p)}
+.mc-tpick-btn i{font-size:19px;color:var(--mc-p)}
 .mc-ip-hdr{padding:10px 12px;font-weight:500;font-size:12px;color:var(--mc-p);border-bottom:0.5px solid var(--mc-bd);display:flex;align-items:center;gap:4px;justify-content:flex-end}
 .mc-ip-row{display:flex;align-items:center;padding:6px 12px;gap:8px;font-size:11px}
 .mc-ip-row i{font-size:14px;color:var(--mc-p);width:16px;text-align:center;flex-shrink:0}
@@ -287,7 +305,8 @@ class Chat{
 	updateHeader(){const c=avatarColor(this.client);this.$el.find('#chAv').text(avatarLetter(this.client)).css('background',c);this.$el.find('#chNm').text(this.client||'Select a client');const tags=[];if(this.rtype)tags.push(`<span class="tag"><i class="ti ${typeIcon(this.rtype)}" style="font-size:11px"></i> ${this.rtype}</span>`);if(this.session)tags.push(`<span class="tag">${this.session}</span>`);this.$el.find('#chTags').html(tags.join(''));}
 	async startSession(){const c=this.clientCtrl?this.clientCtrl.get_value():'';if(!c)return frappe.msgprint('Select a client first');this.client=c;this.$msgs.empty();this.showTypePicker();}
 	showTypePicker(){const $p=$('<div class="mc-tpick"></div>');$p.append('<h4>Select request type</h4>');const $g=$('<div class="mc-tpick-grid"></div>');TYPES.forEach(t=>{const $b=$(`<div class="mc-tpick-btn"><i class="ti ${t.icon}"></i><span>${t.id}</span></div>`);$b.on('click',()=>this.createSession(t.id));$g.append($b);});$p.append($g);this.$msgs.html('').append($p);}
-	async createSession(type){this.rtype=type;const r=await frappe.call('mubtkir_ai_creator.api.start_session',{client_site:this.client,request_type:type});this.session=r.message.session;this.status='Open';this.viewOnly=false;this.$msgs.empty();this.enable();this.addB('s',`Session started — Client: ${this.client} — Type: ${type}`);this.refreshInfo();this.app.loadConvs();this.hooks.onTitle&&this.hooks.onTitle(this.client);}
+	async createSession(type){this.rtype=type;const r=await frappe.call('mubtkir_ai_creator.api.start_session',{client_site:this.client,request_type:type});this.session=r.message.session;this.status='Open';this.viewOnly=false;this.$msgs.empty();this.enable();this.addB('s',`Session started — Client: ${this.client} — Type: ${type}`);this.showQuickPrompts(type);this.refreshInfo();this.app.loadConvs();this.hooks.onTitle&&this.hooks.onTitle(this.client);}
+	showQuickPrompts(type){const prompts=QUICK_PROMPTS[type];if(!prompts||!prompts.length)return;const $wrap=$('<div class="mc-qp" dir="rtl" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 4px 8px"></div>');prompts.forEach(p=>{const $chip=$(`<button class="mc-qp-chip" style="border:0.5px solid var(--mc-bd);border-radius:14px;padding:5px 12px;font-size:11px;background:#fff;color:var(--mc-p);cursor:pointer">${frappe.utils.escape_html(p)}</button>`);$chip.on('click',()=>{this.$input.val(p).trigger('input');this.$input.focus();});$wrap.append($chip);});this.$msgs.append($wrap);}
 	async resume(ses,client,title,status,rtype,reopen){this.session=ses;this.client=client;this.rtype=rtype;this.status=status;this.viewOnly=status!=='Open'&&!reopen;if(reopen&&status!=='Open'){await frappe.call('mubtkir_ai_creator.api.reopen_session',{session:ses});this.status='Open';this.viewOnly=false;}if(!this.viewOnly)this.enable();else{this.updateHeader();this.$el.find('#chClientBar').hide();this.$el.find('#chBtns').html('<span style="font-size:10px;color:#94a3b8">View only</span>');}this.hooks.onTitle&&this.hooks.onTitle(title||client);const r=await frappe.call('mubtkir_ai_creator.api.get_session_messages',{session:ses});this.$msgs.empty();this.addB('s',this.viewOnly?`Viewing session (read-only) — ${client}`:`Session resumed — ${client}`);(r.message||[]).forEach(m=>{const role=m.role==='user'?'u':'b';const txt=this.extractText(m.content);if(txt)this.addB(role,frappe.utils.escape_html(txt),txt);});this.loadPin();this.refreshInfo();}
 	extractText(c){if(typeof c==='string')return c;if(Array.isArray(c))return c.filter(b=>b.type==='text').map(b=>b.text).join('\n')||'';return '';}
 	async endSession(){frappe.confirm('End this session?',async()=>{await frappe.call('mubtkir_ai_creator.api.close_session',{session:this.session});this.status='Closed';this.disable();this.updateHeader();this.addB('s','Session ended');this.refreshInfo();this.app.loadConvs();});}
@@ -315,8 +334,8 @@ class Chat{
 	copyConv(){const texts=[];this.$msgs.find('.mc-bbl').each(function(){texts.push($(this).text().trim());});frappe.utils.copy_to_clipboard(texts.join('\n\n'));frappe.show_alert({message:'Conversation copied',indicator:'green'},2);}
 	pickFile(){if(!this.session)return;new frappe.ui.FileUploader({doctype:'AI Session',docname:this.session,folder:'Home/Attachments',restrictions:{allowed_file_types:['.xlsx','.xlsm','.csv','.txt','.json','.md','image/*'],max_file_size:5*1024*1024},on_success:f=>{this.files.push({url:f.file_url,name:f.file_name});this.renderChips();}});}
 	renderChips(){this.$chips.empty();this.files.forEach((f,i)=>{const $c=$(`<span class="mc-chip">${/\.(png|jpe?g|gif|webp)$/i.test(f.name)?'img':'file'} ${frappe.utils.escape_html(f.name)} <a href="#" style="color:#94a3b8">✕</a></span>`);$c.find('a').on('click',e=>{e.preventDefault();this.files.splice(i,1);this.renderChips();});this.$chips.append($c);});}
-	async send(){if(this.viewOnly)return;let msg=(this.$input.val()||'').trim();if(!msg&&!this.files.length)return;if(!this.session)return;if(this.replyTo){msg=`Replying to: "${this.replyTo.substring(0,100)}"\n\n${msg}`;this.clearReply();}const files=this.files.slice();const fNote=files.length?`\n📎 ${files.map(f=>f.name).join(', ')}`:'';this.addB('u',frappe.utils.escape_html(msg+fNote));this.$input.val('').trigger('input');this.files=[];this.renderChips();this.$typing.show();this.$msgs.scrollTop(this.$msgs[0].scrollHeight);try{const r=await frappe.call('mubtkir_ai_creator.api.send_message',{session:this.session,message:msg||'Review attachments',attachments:JSON.stringify(files.map(f=>f.url))});this.$typing.hide();this.handleRes(r.message);if(this.app.soundOn)playNotif();}catch(e){this.$typing.hide();this.addB('e','Error — check Error Log');}this.refreshInfo();this.app.loadConvs();}
-	handleRes(res){if(!res)return;if(res.type==='message')return this.addB('b',frappe.utils.escape_html(res.text||''),res.text);if(res.type==='approval_required'){this.addB('b',frappe.utils.escape_html(res.plan||''),res.plan);const rl=res.risk_level;const $box=$(`<div style="border:0.5px solid var(--mc-bd);border-radius:8px;padding:10px;margin-bottom:6px"><div style="margin-bottom:6px;font-weight:500;font-size:11px;color:#92400e">Risk: ${rl} — Approval required</div><pre style="max-height:150px;overflow:auto;font-size:9px;direction:ltr;text-align:left;background:var(--mc-sf);padding:6px;border-radius:6px">${frappe.utils.escape_html(JSON.stringify(res.calls,null,2))}</pre><div style="display:flex;gap:6px;margin-top:6px"><button class="appr mc-send" style="font-size:10px;padding:4px 12px">Approve now</button><button class="sched mc-hdr-btn" style="font-size:10px">Schedule</button><button class="rej mc-hdr-btn" style="font-size:10px">Reject</button></div></div>`);$box.find('.appr').on('click',()=>this.approve(res.task,$box));$box.find('.sched').on('click',()=>this.scheduleTask(res.task,$box));$box.find('.rej').on('click',()=>this.reject(res.task,$box));this.$msgs.append($box);this.$msgs.scrollTop(this.$msgs[0].scrollHeight);}}
+	async send(){if(this.viewOnly)return;let msg=(this.$input.val()||'').trim();if(!msg&&!this.files.length)return;if(!this.session)return;this.$msgs.find('.mc-qp').remove();if(this.replyTo){msg=`Replying to: "${this.replyTo.substring(0,100)}"\n\n${msg}`;this.clearReply();}const files=this.files.slice();const fNote=files.length?`\n📎 ${files.map(f=>f.name).join(', ')}`:'';this.addB('u',frappe.utils.escape_html(msg+fNote));this.$input.val('').trigger('input');this.files=[];this.renderChips();this.$typing.show();this.$msgs.scrollTop(this.$msgs[0].scrollHeight);try{const r=await frappe.call('mubtkir_ai_creator.api.send_message',{session:this.session,message:msg||'Review attachments',attachments:JSON.stringify(files.map(f=>f.url))});this.$typing.hide();this.handleRes(r.message);if(this.app.soundOn)playNotif();}catch(e){this.$typing.hide();this.addB('e','Error — check Error Log');}this.refreshInfo();this.app.loadConvs();}
+	handleRes(res){if(!res)return;if(res.cost_warning)this.addB('w',frappe.utils.escape_html(res.cost_warning));if(res.type==='message')return this.addB('b',frappe.utils.escape_html(res.text||''),res.text);if(res.type==='approval_required'){this.addB('b',frappe.utils.escape_html(res.plan||''),res.plan);const rl=res.risk_level;const $box=$(`<div style="border:0.5px solid var(--mc-bd);border-radius:8px;padding:10px;margin-bottom:6px"><div style="margin-bottom:6px;font-weight:500;font-size:11px;color:#92400e">Risk: ${rl} — Approval required</div><pre style="max-height:150px;overflow:auto;font-size:9px;direction:ltr;text-align:left;background:var(--mc-sf);padding:6px;border-radius:6px">${frappe.utils.escape_html(JSON.stringify(res.calls,null,2))}</pre><div style="display:flex;gap:6px;margin-top:6px"><button class="appr mc-send" style="font-size:10px;padding:4px 12px">Approve now</button><button class="sched mc-hdr-btn" style="font-size:10px">Schedule</button><button class="rej mc-hdr-btn" style="font-size:10px">Reject</button></div></div>`);$box.find('.appr').on('click',()=>this.approve(res.task,$box));$box.find('.sched').on('click',()=>this.scheduleTask(res.task,$box));$box.find('.rej').on('click',()=>this.reject(res.task,$box));this.$msgs.append($box);this.$msgs.scrollTop(this.$msgs[0].scrollHeight);}}
 	async approve(task,$box){$box.find('button').prop('disabled',true);this.$typing.show();const r=await frappe.call('mubtkir_ai_creator.ai_creator.doctype.ai_task.ai_task.approve',{name:task});this.$typing.hide();const out=r.message||{};if(out.status==='Completed'){this.addB('b','✅ Executed successfully\n\n'+frappe.utils.escape_html(JSON.stringify(out.verification,null,2)));this.showUndo(task);}else{const err=this.dec(out.error||'Unknown error');this.addB('e','❌ Failed\n\n'+frappe.utils.escape_html(err),err);}this.refreshInfo();}
 	async reject(task,$box){$box.find('button').prop('disabled',true);await frappe.call('mubtkir_ai_creator.ai_creator.doctype.ai_task.ai_task.reject',{name:task});this.addB('s','Operation rejected');}
 	scheduleTask(task,$box){

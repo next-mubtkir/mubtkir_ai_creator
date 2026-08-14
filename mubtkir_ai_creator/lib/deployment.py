@@ -18,6 +18,14 @@ from mubtkir_ai_creator.lib.client import FrappeSiteClient
 
 ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings", "Custom HTML Block", "Workspace", "Item", "Customer", "Supplier")
 
+# أنواع مرفوضة صراحةً حتى لو اختيرت من قائمة "كل DocTypes" — تحتوي بيانات اعتماد
+# أو هي جزء داخلي من هذا التطبيق نفسه، ونشرها بين عملاء خطأ شائع خطير
+DENYLIST_TYPES = {
+    "User", "AI Client Site", "AI Settings", "AI Task", "AI Action Log",
+    "AI Session", "AI Deployment", "AI Deployment Target", "AI Import",
+    "AI Import Field Map", "AI Template", "DocType",
+}
+
 # اسم الـ DocType الفعلي لدى الموقع، لكل نوع نشر يُقرأ منه/يُكتب إليه مباشرة
 # (Settings حالة خاصة: الاسم = اسم الـ DocType نفسه لأنه Single)
 TYPE_DOCTYPE = {
@@ -49,7 +57,7 @@ STRIP_FIELDS = {
 
 def build_payload(dep):
     """استخراج البيانات المراد تطبيقها، من عميل مصدر أو من تعريف يدوي."""
-    if dep.deployment_type not in ALLOWED_TYPES:
+    if dep.deployment_type in DENYLIST_TYPES:
         frappe.throw(f"نوع نشر غير مسموح: {dep.deployment_type}")
 
     if dep.source_mode == "من قالب":
@@ -103,7 +111,10 @@ def _identity(dep, payload):
     if dep.deployment_type in FIELD_NAMED_TYPES:
         field = FIELD_NAMED_TYPES[dep.deployment_type]
         return TYPE_DOCTYPE[dep.deployment_type], payload.get(field) or dep.source_record
-    return dep.target_doctype, dep.target_doctype  # Settings: Single doctype
+    if dep.deployment_type == "Settings":
+        return dep.target_doctype, dep.target_doctype  # Single doctype
+    # أي نوع آخر غير مصنّف صراحة أعلاه: افتراض أن الاسم لدى الهدف يطابق اسمه لدى المصدر
+    return TYPE_DOCTYPE.get(dep.deployment_type, dep.deployment_type), dep.source_record
 
 
 # ---------------- المعاينة ----------------

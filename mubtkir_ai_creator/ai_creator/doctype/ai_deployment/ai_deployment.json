@@ -53,9 +53,8 @@
   },
   {
    "fieldname": "deployment_type",
-   "fieldtype": "Select",
+   "fieldtype": "Autocomplete",
    "label": "نوع العملية",
-   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier",
    "reqd": 1,
    "in_list_view": 1
   },
@@ -98,7 +97,8 @@
    "label": "العميل المصدر",
    "options": "AI Client Site",
    "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
-   "mandatory_depends_on": "eval:doc.source_mode=='نسخ من عميل'"
+   "mandatory_depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "in_list_view": 1
   },
   {
    "fieldname": "source_record",
@@ -122,7 +122,7 @@
   },
   {
    "fieldname": "target_doctype",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "الـ DocType المستهدف",
    "description": "لـ Custom Field: الـ DocType المضاف إليه. لـ Settings: اسم DocType الإعدادات مثل Stock Settings"
   },
@@ -208,13 +208,15 @@
    "fieldname": "total_targets",
    "fieldtype": "Int",
    "label": "إجمالي الأهداف",
-   "read_only": 1
+   "read_only": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "success_count",
    "fieldtype": "Int",
    "label": "نجحت",
-   "read_only": 1
+   "read_only": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_4",
@@ -224,13 +226,15 @@
    "fieldname": "failed_count",
    "fieldtype": "Int",
    "label": "فشلت",
-   "read_only": 1
+   "read_only": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "skipped_count",
    "fieldtype": "Int",
    "label": "تُخطّيت",
-   "read_only": 1
+   "read_only": 1,
+   "in_list_view": 1
   }
  ],
  "links": [],

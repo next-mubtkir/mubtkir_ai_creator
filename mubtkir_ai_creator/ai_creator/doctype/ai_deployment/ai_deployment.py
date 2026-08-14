@@ -2,14 +2,9 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-MAX_TARGETS = 10
-
 
 class AIDeployment(Document):
     def validate(self):
-        if len(self.targets or []) > MAX_TARGETS:
-            frappe.throw(f"الحد الأقصى {MAX_TARGETS} عملاء في عملية النشر الواحدة")
-
         seen = set()
         for row in self.targets or []:
             if row.client_site in seen:
@@ -20,6 +15,23 @@ class AIDeployment(Document):
             frappe.throw("حدد الـ DocType المستهدف")
 
         self.total_targets = len(self.targets or [])
+
+
+@frappe.whitelist()
+def get_client_doctypes(client_site):
+    """قائمة أنواع المستندات المتاحة فعليًا لدى موقع عميل معيّن."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    from mubtkir_ai_creator.lib.client import FrappeSiteClient
+
+    client = FrappeSiteClient(client_site)
+    rows = client.get_list(
+        "DocType",
+        fields=["name"],
+        filters={"istable": 0, "issingle": 0},
+        limit=1000,
+        order_by="name asc",
+    ).get("data") or []
+    return sorted({r.get("name") for r in rows if r.get("name")})
 
 
 @frappe.whitelist()

@@ -30,11 +30,8 @@ STRIP_FIELDS = {
 
 def list_available(client_site, artifact_type, target_doctype=None, limit=100):
     """استعراض ما يمكن التقاطه لدى العميل قبل الاختيار."""
-    if artifact_type not in ARTIFACTS:
-        frappe.throw(f"نوع غير مدعوم: {artifact_type}")
-
     client = FrappeSiteClient(client_site)
-    doctype = ARTIFACTS[artifact_type]["doctype"]
+    doctype = ARTIFACTS.get(artifact_type, {}).get("doctype", artifact_type)
 
     field_map = {
         "Custom Field": (["name", "dt", "fieldname", "label", "fieldtype"], "dt"),
@@ -48,10 +45,26 @@ def list_available(client_site, artifact_type, target_doctype=None, limit=100):
         "Customer": (["name", "customer_name", "customer_group", "disabled"], "customer_group"),
         "Supplier": (["name", "supplier_name", "supplier_group", "disabled"], "supplier_group"),
     }
-    fields, filter_key = field_map[artifact_type]
+    # أي DocType آخر لم يُدرج أعلاه: عرض الاسم فقط بلا حصر إضافي
+    fields, filter_key = field_map.get(artifact_type, (["name"], None))
     filters = {filter_key: target_doctype} if target_doctype and filter_key else None
 
     return client.get_list(doctype, fields=fields, filters=filters, limit=limit).get("data") or []
+
+
+def list_artifact_types(client_site):
+    """الأنواع الخاصة المعروفة أولًا، ثم كل DocTypes الموجودة فعليًا لدى هذا العميل — لتعبئة قائمة الاختيار بالكامل."""
+    known = list(ARTIFACTS.keys())
+    client = FrappeSiteClient(client_site)
+    rows = client.get_list(
+        "DocType",
+        fields=["name"],
+        filters={"istable": 0, "issingle": 0},
+        limit=1000,
+        order_by="name asc",
+    ).get("data") or []
+    others = sorted({r.get("name") for r in rows if r.get("name") and r.get("name") not in known})
+    return known + others
 
 
 def capture(client_site, artifact_type, source_name, title=None, notes=None):
@@ -140,3 +153,23 @@ def run_list_available(client_site, artifact_type, target_doctype=None):
 def run_capture_all(client_site, target_doctype=None):
     frappe.only_for(["System Manager", "AI Creator Supervisor"])
     return capture_all(client_site, target_doctype)
+
+
+@frappe.whitelist()
+def run_list_artifact_types(client_site):
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    return list_artifact_types(client_site)
+
+
+@frappe.whitelist()
+def search_templates(query, limit=20):
+    """بحث نصي كامل بعنوان القالب أو محتواه (JSON) أو ملاحظاته — مو بالعنوان فقط."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    like = f"%{query}%"
+    return frappe.get_all(
+        "AI Template",
+        or_filters={"title": ["like", like], "payload": ["like", like], "notes": ["like", like]},
+        fields=["name", "title", "artifact_type", "source_client", "version", "captured_on"],
+        order_by="captured_on desc",
+        limit_page_length=min(int(limit), 50),
+    )

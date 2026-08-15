@@ -101,8 +101,17 @@ function load_target_doctype_options(frm) {
 		args: { client_site: frm.doc.client_site },
 		async: false,
 		callback: function (r) {
-			frm.set_df_property('target_doctype', 'options', r.message || []);
-			frm.refresh_field('target_doctype');
+			var list = r.message || [];
+			var $input = frm.fields_dict.target_doctype && frm.fields_dict.target_doctype.$input;
+			if ($input && $input.length) {
+				if ($input[0]._awesomplete) {
+					$input[0]._awesomplete.list = list;
+				} else {
+					var aw = new Awesomplete($input[0], { list: list, minChars: 0, maxItems: 20 });
+					$input[0]._awesomplete = aw;
+					$input.on('focus', function () { aw.evaluate(); });
+				}
+			}
 		},
 	});
 }

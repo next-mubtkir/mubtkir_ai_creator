@@ -53,10 +53,11 @@
   },
   {
    "fieldname": "deployment_type",
-   "fieldtype": "Autocomplete",
+   "fieldtype": "Select",
    "label": "نوع العملية",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier"
   },
   {
    "fieldname": "column_break_1",
@@ -122,7 +123,7 @@
   },
   {
    "fieldname": "target_doctype",
-   "fieldtype": "Autocomplete",
+   "fieldtype": "Data",
    "label": "الـ DocType المستهدف",
    "description": "لـ Custom Field: الـ DocType المضاف إليه. لـ Settings: اسم DocType الإعدادات مثل Stock Settings"
   },

@@ -5,59 +5,257 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "title", "client_site", "column_break_1", "target_doctype", "status",
-  "file_section", "source_file", "google_sheet_url", "column_break_2", "skip_invalid_rows",
-  "analysis_section", "detected_columns", "analysis_notes", "column_break_3", "sample_rows",
-  "mapping_section", "field_mapping", "column_break_4", "static_values",
-  "preview_section", "preview_result",
-  "approval_section", "approved_by", "column_break_5", "approved_on",
-  "result_section", "total_rows", "valid_rows", "processed_rows", "column_break_6", "success_count", "failed_count", "invalid_rows",
-  "report_section", "failure_report", "error_message"
+  "title",
+  "client_site",
+  "column_break_1",
+  "target_doctype",
+  "status",
+  "file_section",
+  "source_file",
+  "google_sheet_url",
+  "column_break_2",
+  "skip_invalid_rows",
+  "analysis_section",
+  "detected_columns",
+  "analysis_notes",
+  "column_break_3",
+  "sample_rows",
+  "mapping_section",
+  "field_mapping",
+  "column_break_4",
+  "static_values",
+  "preview_section",
+  "preview_result",
+  "approval_section",
+  "approved_by",
+  "column_break_5",
+  "approved_on",
+  "result_section",
+  "total_rows",
+  "valid_rows",
+  "processed_rows",
+  "column_break_6",
+  "success_count",
+  "failed_count",
+  "invalid_rows",
+  "report_section",
+  "failure_report",
+  "error_message"
  ],
  "fields": [
-  {"fieldname": "title", "fieldtype": "Data", "label": "عنوان الاستيراد", "reqd": 1, "in_list_view": 1},
-  {"fieldname": "client_site", "fieldtype": "Link", "label": "العميل", "options": "AI Client Site", "reqd": 1, "in_list_view": 1},
-  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
-  {"fieldname": "target_doctype", "fieldtype": "Autocomplete", "label": "الـ DocType المستهدف", "reqd": 1, "in_list_view": 1, "description": "اختر من قائمة أنواع المستندات المتاحة فعليًا لدى هذا العميل"},
-  {"fieldname": "status", "fieldtype": "Select", "label": "الحالة", "options": "Draft\nMapping Ready\nPending Approval\nApproved\nQueued\nExecuting\nCompleted\nPartially Failed\nFailed", "default": "Draft", "read_only": 1, "in_list_view": 1},
-
-  {"fieldname": "file_section", "fieldtype": "Section Break", "label": "الملف"},
-  {"fieldname": "source_file", "fieldtype": "Attach", "label": "ملف الاستيراد", "description": "xlsx أو csv — الورقة الأولى فقط، والصف الأول رؤوس الأعمدة. اترك فارغًا لو مستخدم رابط Google Sheet بدلًا منه"},
-  {"fieldname": "google_sheet_url", "fieldtype": "Data", "label": "رابط Google Sheet", "description": "بديل عن رفع ملف — يجب أن تكون صلاحية المشاركة \"يمكن لأي شخص لديه الرابط العرض\"؛ يُقرأ الشيت الأول فقط، والصف الأول رؤوس الأعمدة"},
-  {"fieldname": "column_break_2", "fieldtype": "Column Break"},
-  {"fieldname": "skip_invalid_rows", "fieldtype": "Check", "label": "تخطّي الصفوف الفاشلة والمتابعة", "default": "1", "description": "غير مفعّل = يتوقف الاستيراد عند أول صف فاشل"},
-
-  {"fieldname": "analysis_section", "fieldtype": "Section Break", "label": "التحليل"},
-  {"fieldname": "detected_columns", "fieldtype": "Code", "label": "أعمدة الملف", "options": "JSON", "read_only": 1},
-  {"fieldname": "analysis_notes", "fieldtype": "Small Text", "label": "ملاحظات التحليل", "read_only": 1},
-  {"fieldname": "column_break_3", "fieldtype": "Column Break"},
-  {"fieldname": "sample_rows", "fieldtype": "Code", "label": "عيّنة من الصفوف", "options": "JSON", "read_only": 1},
-
-  {"fieldname": "mapping_section", "fieldtype": "Section Break", "label": "خريطة الحقول (قابلة للتعديل)"},
-  {"fieldname": "field_mapping", "fieldtype": "Table", "label": "الخريطة", "options": "AI Import Field Map", "description": "عدّل الحقل المقابل لكل عمود قبل المعاينة إن لزم — اتركه فارغًا لتجاهل العمود"},
-  {"fieldname": "column_break_4", "fieldtype": "Column Break"},
-  {"fieldname": "static_values", "fieldtype": "Code", "label": "قيم ثابتة لكل الصفوف", "options": "JSON", "description": "{\"item_group\": \"...\"} تُطبَّق على كل صف"},
-
-  {"fieldname": "preview_section", "fieldtype": "Section Break", "label": "المعاينة"},
-  {"fieldname": "preview_result", "fieldtype": "Code", "label": "نتيجة المعاينة", "options": "JSON", "read_only": 1},
-
-  {"fieldname": "approval_section", "fieldtype": "Section Break", "label": "الاعتماد"},
-  {"fieldname": "approved_by", "fieldtype": "Link", "label": "اعتمدها", "options": "User", "read_only": 1},
-  {"fieldname": "column_break_5", "fieldtype": "Column Break"},
-  {"fieldname": "approved_on", "fieldtype": "Datetime", "label": "تاريخ الاعتماد", "read_only": 1},
-
-  {"fieldname": "result_section", "fieldtype": "Section Break", "label": "النتيجة"},
-  {"fieldname": "total_rows", "fieldtype": "Int", "label": "إجمالي الصفوف", "read_only": 1},
-  {"fieldname": "valid_rows", "fieldtype": "Int", "label": "صفوف جاهزة", "read_only": 1},
-  {"fieldname": "processed_rows", "fieldtype": "Int", "label": "صفوف تمت معالجتها", "read_only": 1},
-  {"fieldname": "column_break_6", "fieldtype": "Column Break"},
-  {"fieldname": "success_count", "fieldtype": "Int", "label": "نجحت", "read_only": 1},
-  {"fieldname": "failed_count", "fieldtype": "Int", "label": "فشلت", "read_only": 1},
-  {"fieldname": "invalid_rows", "fieldtype": "Int", "label": "صفوف بها مشاكل (معاينة)", "read_only": 1},
-
-  {"fieldname": "report_section", "fieldtype": "Section Break", "label": "تقرير الفشل"},
-  {"fieldname": "failure_report", "fieldtype": "Code", "label": "الصفوف الفاشلة", "options": "JSON", "read_only": 1},
-  {"fieldname": "error_message", "fieldtype": "Small Text", "label": "الخطأ", "read_only": 1}
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "عنوان الاستيراد",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "client_site",
+   "fieldtype": "Link",
+   "label": "العميل",
+   "options": "AI Client Site",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Data",
+   "label": "الـ DocType المستهدف",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "اختر من قائمة أنواع المستندات المتاحة فعليًا لدى هذا العميل"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "الحالة",
+   "options": "Draft\nMapping Ready\nPending Approval\nApproved\nQueued\nExecuting\nCompleted\nPartially Failed\nFailed",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "file_section",
+   "fieldtype": "Section Break",
+   "label": "الملف"
+  },
+  {
+   "fieldname": "source_file",
+   "fieldtype": "Attach",
+   "label": "ملف الاستيراد",
+   "description": "xlsx أو csv — الورقة الأولى فقط، والصف الأول رؤوس الأعمدة. اترك فارغًا لو مستخدم رابط Google Sheet بدلًا منه"
+  },
+  {
+   "fieldname": "google_sheet_url",
+   "fieldtype": "Data",
+   "label": "رابط Google Sheet",
+   "description": "بديل عن رفع ملف — يجب أن تكون صلاحية المشاركة \"يمكن لأي شخص لديه الرابط العرض\"؛ يُقرأ الشيت الأول فقط، والصف الأول رؤوس الأعمدة"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "skip_invalid_rows",
+   "fieldtype": "Check",
+   "label": "تخطّي الصفوف الفاشلة والمتابعة",
+   "default": "1",
+   "description": "غير مفعّل = يتوقف الاستيراد عند أول صف فاشل"
+  },
+  {
+   "fieldname": "analysis_section",
+   "fieldtype": "Section Break",
+   "label": "التحليل"
+  },
+  {
+   "fieldname": "detected_columns",
+   "fieldtype": "Code",
+   "label": "أعمدة الملف",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "analysis_notes",
+   "fieldtype": "Small Text",
+   "label": "ملاحظات التحليل",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sample_rows",
+   "fieldtype": "Code",
+   "label": "عيّنة من الصفوف",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mapping_section",
+   "fieldtype": "Section Break",
+   "label": "خريطة الحقول (قابلة للتعديل)"
+  },
+  {
+   "fieldname": "field_mapping",
+   "fieldtype": "Table",
+   "label": "الخريطة",
+   "options": "AI Import Field Map",
+   "description": "عدّل الحقل المقابل لكل عمود قبل المعاينة إن لزم — اتركه فارغًا لتجاهل العمود"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "static_values",
+   "fieldtype": "Code",
+   "label": "قيم ثابتة لكل الصفوف",
+   "options": "JSON",
+   "description": "{\"item_group\": \"...\"} تُطبَّق على كل صف"
+  },
+  {
+   "fieldname": "preview_section",
+   "fieldtype": "Section Break",
+   "label": "المعاينة"
+  },
+  {
+   "fieldname": "preview_result",
+   "fieldtype": "Code",
+   "label": "نتيجة المعاينة",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "الاعتماد"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "اعتمدها",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_on",
+   "fieldtype": "Datetime",
+   "label": "تاريخ الاعتماد",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "النتيجة"
+  },
+  {
+   "fieldname": "total_rows",
+   "fieldtype": "Int",
+   "label": "إجمالي الصفوف",
+   "read_only": 1
+  },
+  {
+   "fieldname": "valid_rows",
+   "fieldtype": "Int",
+   "label": "صفوف جاهزة",
+   "read_only": 1
+  },
+  {
+   "fieldname": "processed_rows",
+   "fieldtype": "Int",
+   "label": "صفوف تمت معالجتها",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "success_count",
+   "fieldtype": "Int",
+   "label": "نجحت",
+   "read_only": 1
+  },
+  {
+   "fieldname": "failed_count",
+   "fieldtype": "Int",
+   "label": "فشلت",
+   "read_only": 1
+  },
+  {
+   "fieldname": "invalid_rows",
+   "fieldtype": "Int",
+   "label": "صفوف بها مشاكل (معاينة)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "report_section",
+   "fieldtype": "Section Break",
+   "label": "تقرير الفشل"
+  },
+  {
+   "fieldname": "failure_report",
+   "fieldtype": "Code",
+   "label": "الصفوف الفاشلة",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "الخطأ",
+   "read_only": 1
+  }
  ],
  "links": [],
  "modified": "2026-01-01 00:00:00.000000",
@@ -65,9 +263,26 @@
  "name": "AI Import",
  "owner": "Administrator",
  "permissions": [
-  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager", "share": 1},
-  {"create": 1, "read": 1, "write": 1, "role": "AI Creator User"},
-  {"create": 1, "read": 1, "write": 1, "role": "AI Creator Supervisor"}
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "AI Creator User"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "AI Creator Supervisor"
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",

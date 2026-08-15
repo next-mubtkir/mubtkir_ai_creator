@@ -208,15 +208,7 @@ def analyze(name):
             frappe.throw(f"تعذّر قراءة خريطة الحقول من النموذج. الرد: {text[:400]}")
         parsed = json.loads(text[start : end + 1])
 
-    doc.db_set("detected_columns", json.dumps(headers, ensure_ascii=False))
-    doc.db_set("sample_rows", json.dumps(sample, ensure_ascii=False, indent=2))
     doc.db_set("total_rows", len(rows))
-    doc.db_set(
-        "analysis_notes",
-        f"أعمدة بلا مقابل: {'، '.join(parsed.get('unmapped_columns') or []) or 'لا يوجد'}\n"
-        f"حقول إجبارية بلا عمود: {'، '.join(parsed.get('missing_required') or []) or 'لا يوجد'}\n"
-        f"{parsed.get('notes') or ''}",
-    )
     doc.db_set("status", "Mapping Ready")
 
     mapping = parsed.get("mapping") or {}
@@ -234,7 +226,7 @@ def analyze(name):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"headers": headers, "total_rows": len(rows), "mapping": mapping, "notes": parsed.get("notes")}
+    return {"headers": headers, "total_rows": len(rows), "mapping": mapping, "notes": parsed.get("notes"), "sample_rows": sample, "unmapped": parsed.get("unmapped_columns") or []}
 
 
 # ---------------- تحويل الصفوف ----------------
@@ -345,14 +337,6 @@ def preview(name):
     doc.db_set("total_rows", len(prepared))
     doc.db_set("valid_rows", ok_count)
     doc.db_set("invalid_rows", len(issues))
-    doc.db_set(
-        "preview_result",
-        json.dumps(
-            {"summary": summary, "invalid_links": invalid_links, "row_issues": issues[:200]},
-            ensure_ascii=False,
-            indent=2,
-        ),
-    )
     doc.db_set("status", "Pending Approval")
     frappe.db.commit()
 
@@ -366,14 +350,7 @@ def download_failure_rows(name):
     doc = frappe.get_doc("AI Import", name)
 
     rows = []
-    try:
-        parsed = json.loads(doc.preview_result or "{}")
-        rows = parsed.get("row_issues") or []
-    except ValueError:
-        rows = []
-
-    if not rows and doc.failure_report:
-        # تنفيذ فعلي (execute) يخزن failure_report كنص — نحوّله لصفوف بسيطة
+    if doc.failure_report:
         for line in (doc.failure_report or "").splitlines():
             if line.strip():
                 rows.append({"row": "", "issues": [line.strip()], "sample": {}})

@@ -19,10 +19,11 @@
   "column_break_2",
   "target_doctype",
   "manual_payload",
-  "payload_section",
-  "resolved_payload",
   "targets_section",
   "targets",
+  "tab_payload",
+  "payload_section",
+  "resolved_payload",
   "tab_preview",
   "preview_section",
   "preview_summary",
@@ -138,7 +139,7 @@
   {
    "fieldname": "payload_section",
    "fieldtype": "Section Break",
-   "label": "البيانات النهائية"
+   "label": ""
   },
   {
    "fieldname": "resolved_payload",
@@ -236,6 +237,11 @@
    "label": "تُخطّيت",
    "read_only": 1,
    "in_list_view": 1
+  },
+  {
+   "fieldname": "tab_payload",
+   "fieldtype": "Tab Break",
+   "label": "البيانات النهائية"
   }
  ],
  "links": [],

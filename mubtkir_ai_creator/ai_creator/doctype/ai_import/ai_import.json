@@ -15,17 +15,10 @@
   "google_sheet_url",
   "column_break_2",
   "skip_invalid_rows",
-  "analysis_section",
-  "detected_columns",
-  "analysis_notes",
-  "column_break_3",
-  "sample_rows",
   "mapping_section",
   "field_mapping",
   "column_break_4",
   "static_values",
-  "preview_section",
-  "preview_result",
   "approval_section",
   "approved_by",
   "column_break_5",
@@ -108,35 +101,6 @@
    "description": "غير مفعّل = يتوقف الاستيراد عند أول صف فاشل"
   },
   {
-   "fieldname": "analysis_section",
-   "fieldtype": "Section Break",
-   "label": "التحليل"
-  },
-  {
-   "fieldname": "detected_columns",
-   "fieldtype": "Code",
-   "label": "أعمدة الملف",
-   "options": "JSON",
-   "read_only": 1
-  },
-  {
-   "fieldname": "analysis_notes",
-   "fieldtype": "Small Text",
-   "label": "ملاحظات التحليل",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_3",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "sample_rows",
-   "fieldtype": "Code",
-   "label": "عيّنة من الصفوف",
-   "options": "JSON",
-   "read_only": 1
-  },
-  {
    "fieldname": "mapping_section",
    "fieldtype": "Section Break",
    "label": "خريطة الحقول (قابلة للتعديل)"
@@ -158,18 +122,6 @@
    "label": "قيم ثابتة لكل الصفوف",
    "options": "JSON",
    "description": "{\"item_group\": \"...\"} تُطبَّق على كل صف"
-  },
-  {
-   "fieldname": "preview_section",
-   "fieldtype": "Section Break",
-   "label": "المعاينة"
-  },
-  {
-   "fieldname": "preview_result",
-   "fieldtype": "Code",
-   "label": "نتيجة المعاينة",
-   "options": "JSON",
-   "read_only": 1
   },
   {
    "fieldname": "approval_section",

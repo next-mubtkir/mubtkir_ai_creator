@@ -35,7 +35,8 @@ frappe.ui.form.on('AI Client Site', {
 					{
 						fieldname: 'artifact_type',
 						label: __('النوع'),
-						fieldtype: 'Autocomplete',
+						fieldtype: 'Select',
+						options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier',
 						reqd: 1,
 						default: 'Print Format',
 					},
@@ -44,15 +45,6 @@ frappe.ui.form.on('AI Client Site', {
 					{ fieldname: 'select_all', label: __('تحديد الكل'), fieldtype: 'Button', hidden: 1 },
 					{ fieldname: 'results', fieldtype: 'HTML' },
 				],
-			});
-
-			frappe.call({
-				method: 'mubtkir_ai_creator.lib.templates.run_list_artifact_types',
-				args: { client_site: frm.doc.name },
-				callback: function (r) {
-					d.fields_dict.artifact_type.df.options = r.message || [];
-					d.fields_dict.artifact_type.refresh();
-				},
 			});
 
 			let lastRows = [];
@@ -135,27 +127,5 @@ frappe.ui.form.on('AI Client Site', {
 			d.show();
 		}, __('Templates'));
 
-		// ===== 3. التقاط الكل =====
-		frm.add_custom_button(__('Capture All Customizations'), function () {
-			frappe.confirm(
-				'Capture all Custom Fields, Property Setters, Print Formats, Client Scripts, Server Scripts, Custom HTML Blocks, and Workspaces from this client?',
-				function () {
-					frappe.call({
-						method: 'mubtkir_ai_creator.lib.templates.run_capture_all',
-						args: { client_site: frm.doc.name },
-						freeze: true,
-						freeze_message: __('Capturing...'),
-						callback: function (r) {
-							const m = r.message || {};
-							frappe.msgprint({
-								title: __('Capture Complete'),
-								indicator: 'green',
-								message: 'Captured: ' + (m.captured || 0) + ' items. Errors: ' + ((m.errors || []).length),
-							});
-						},
-					});
-				}
-			);
-		}, __('Templates'));
 	},
 });

@@ -64,8 +64,12 @@ def run_turn(session_name, user_message, file_urls=None):
     messages = session.get_messages()
     tool_defs = tools.get_tool_definitions()
 
+    # تمرير نوع الطلب للنموذج بالـ System Prompt
+    rtype = session.request_type or "Other"
+    system = llm.SYSTEM_PROMPT.replace("{request_type}", rtype)
+
     for _ in range(MAX_ITERATIONS):
-        result = llm.chat(messages, tools=tool_defs)
+        result = llm.chat(messages, tools=tool_defs, system=system)
 
         if not result["tool_calls"]:
             session.append_message("assistant", result["text"])

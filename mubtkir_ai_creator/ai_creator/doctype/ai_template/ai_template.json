@@ -27,7 +27,7 @@
   {
    "fieldname": "title",
    "fieldtype": "Data",
-   "label": "العنوان",
+   "label": "Title",
    "reqd": 1,
    "in_list_view": 1,
    "in_global_search": 1
@@ -35,7 +35,7 @@
   {
    "fieldname": "artifact_type",
    "fieldtype": "Data",
-   "label": "النوع",
+   "label": "Type",
    "reqd": 1,
    "in_list_view": 1,
    "read_only": 1
@@ -47,7 +47,7 @@
   {
    "fieldname": "version",
    "fieldtype": "Int",
-   "label": "رقم النسخة",
+   "label": "Version",
    "read_only": 1,
    "in_list_view": 1,
    "default": "1"
@@ -55,20 +55,20 @@
   {
    "fieldname": "deployable",
    "fieldtype": "Check",
-   "label": "قابل للنشر على عملاء آخرين",
+   "label": "Deployable to Other Clients",
    "read_only": 1,
    "in_list_view": 1,
-   "description": "Server Script للتوثيق والتصدير فقط ولا يُنشر"
+   "description": "Server Script is for documentation/export only and cannot be deployed"
   },
   {
    "fieldname": "source_section",
    "fieldtype": "Section Break",
-   "label": "المصدر"
+   "label": "Source"
   },
   {
    "fieldname": "source_client",
    "fieldtype": "Link",
-   "label": "العميل المصدر",
+   "label": "Source Client",
    "options": "AI Client Site",
    "read_only": 1,
    "in_list_view": 1
@@ -76,7 +76,7 @@
   {
    "fieldname": "source_name",
    "fieldtype": "Data",
-   "label": "اسم العنصر لدى المصدر",
+   "label": "Source Record Name",
    "read_only": 1
   },
   {
@@ -86,24 +86,24 @@
   {
    "fieldname": "target_doctype",
    "fieldtype": "Data",
-   "label": "الـ DocType المرتبط",
+   "label": "Related DocType",
    "read_only": 1
   },
   {
    "fieldname": "captured_on",
    "fieldtype": "Datetime",
-   "label": "تاريخ الالتقاط",
+   "label": "Captured On",
    "read_only": 1
   },
   {
    "fieldname": "payload_section",
    "fieldtype": "Section Break",
-   "label": "المحتوى الملتقَط"
+   "label": "Captured Content"
   },
   {
    "fieldname": "payload",
    "fieldtype": "Code",
-   "label": "المحتوى (JSON)",
+   "label": "Content (JSON)",
    "options": "JSON",
    "read_only": 1,
    "in_global_search": 1
@@ -111,12 +111,12 @@
   {
    "fieldname": "meta_section",
    "fieldtype": "Section Break",
-   "label": "معلومات إضافية"
+   "label": "Additional Info"
   },
   {
    "fieldname": "previous_version",
    "fieldtype": "Link",
-   "label": "النسخة السابقة",
+   "label": "Previous Version",
    "options": "AI Template",
    "read_only": 1
   },
@@ -127,7 +127,7 @@
   {
    "fieldname": "notes",
    "fieldtype": "Small Text",
-   "label": "ملاحظات"
+   "label": "Notes"
   }
  ],
  "links": [],

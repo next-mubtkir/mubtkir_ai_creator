@@ -21,12 +21,12 @@
   {
    "fieldname": "client_site",
    "fieldtype": "Link",
-   "label": "العميل",
+   "label": "Client",
    "options": "AI Client Site",
    "reqd": 1,
    "read_only": 1,
    "in_list_view": 1,
-   "description": "تُقفل الجلسة على هذا العميل ولا يمكن تغييرها"
+   "description": "Session is locked to this client and cannot be changed"
   },
   {
    "fieldname": "column_break_1",
@@ -35,7 +35,7 @@
   {
    "fieldname": "session_user",
    "fieldtype": "Link",
-   "label": "الموظف",
+   "label": "Employee",
    "options": "User",
    "read_only": 1,
    "in_list_view": 1
@@ -43,7 +43,7 @@
   {
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "الحالة",
+   "label": "Status",
    "options": "Open\nClosed",
    "default": "Open",
    "in_list_view": 1
@@ -63,24 +63,24 @@
   {
    "fieldname": "title",
    "fieldtype": "Data",
-   "label": "عنوان الجلسة"
+   "label": "Session Title"
   },
   {
    "fieldname": "messages",
    "fieldtype": "Long Text",
-   "label": "سجل المحادثة (JSON)",
+   "label": "Conversation Log (JSON)",
    "read_only": 1
   },
   {
    "fieldname": "started_on",
    "fieldtype": "Datetime",
-   "label": "البداية",
+   "label": "Started On",
    "read_only": 1
   },
   {
    "fieldname": "ended_on",
    "fieldtype": "Datetime",
-   "label": "النهاية",
+   "label": "Ended On",
    "read_only": 1
   },
   {

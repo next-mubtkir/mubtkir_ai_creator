@@ -39,14 +39,14 @@
   {
    "fieldname": "title",
    "fieldtype": "Data",
-   "label": "عنوان الاستيراد",
+   "label": "Import Title",
    "reqd": 1,
    "in_list_view": 1
   },
   {
    "fieldname": "client_site",
    "fieldtype": "Link",
-   "label": "العميل",
+   "label": "Client",
    "options": "AI Client Site",
    "reqd": 1,
    "in_list_view": 1
@@ -58,15 +58,15 @@
   {
    "fieldname": "target_doctype",
    "fieldtype": "Data",
-   "label": "الـ DocType المستهدف",
+   "label": "Target DocType",
    "reqd": 1,
    "in_list_view": 1,
-   "description": "اختر من قائمة أنواع المستندات المتاحة فعليًا لدى هذا العميل"
+   "description": "Choose from the list of DocTypes available on this client's site."
   },
   {
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "الحالة",
+   "label": "Status",
    "options": "Draft\nMapping Ready\nPending Approval\nApproved\nQueued\nExecuting\nCompleted\nPartially Failed\nFailed",
    "default": "Draft",
    "read_only": 1,
@@ -75,19 +75,19 @@
   {
    "fieldname": "file_section",
    "fieldtype": "Section Break",
-   "label": "الملف"
+   "label": "File"
   },
   {
    "fieldname": "source_file",
    "fieldtype": "Attach",
-   "label": "ملف الاستيراد",
-   "description": "xlsx أو csv — الورقة الأولى فقط، والصف الأول رؤوس الأعمدة. اترك فارغًا لو مستخدم رابط Google Sheet بدلًا منه"
+   "label": "Import File",
+   "description": "xlsx or csv — first sheet only, first row as headers. Leave empty if using Google Sheet URL instead."
   },
   {
    "fieldname": "google_sheet_url",
    "fieldtype": "Data",
-   "label": "رابط Google Sheet",
-   "description": "بديل عن رفع ملف — يجب أن تكون صلاحية المشاركة \"يمكن لأي شخص لديه الرابط العرض\"؛ يُقرأ الشيت الأول فقط، والصف الأول رؤوس الأعمدة"
+   "label": "Google Sheet URL",
+   "description": "Alternative to file upload — sharing must be set to \"Anyone with the link can view\"; first sheet only, first row as headers."
   },
   {
    "fieldname": "column_break_2",
@@ -96,21 +96,21 @@
   {
    "fieldname": "skip_invalid_rows",
    "fieldtype": "Check",
-   "label": "تخطّي الصفوف الفاشلة والمتابعة",
+   "label": "Skip Invalid Rows",
    "default": "1",
-   "description": "غير مفعّل = يتوقف الاستيراد عند أول صف فاشل"
+   "description": "Disabled = import stops at the first failed row"
   },
   {
    "fieldname": "mapping_section",
    "fieldtype": "Section Break",
-   "label": "خريطة الحقول (قابلة للتعديل)"
+   "label": "Field Mapping (editable)"
   },
   {
    "fieldname": "field_mapping",
    "fieldtype": "Table",
-   "label": "الخريطة",
+   "label": "Field Map",
    "options": "AI Import Field Map",
-   "description": "عدّل الحقل المقابل لكل عمود قبل المعاينة إن لزم — اتركه فارغًا لتجاهل العمود"
+   "description": "Edit the target field for each column before preview — leave empty to skip the column."
   },
   {
    "fieldname": "column_break_4",
@@ -119,19 +119,19 @@
   {
    "fieldname": "static_values",
    "fieldtype": "Code",
-   "label": "قيم ثابتة لكل الصفوف",
+   "label": "Static Values for All Rows",
    "options": "JSON",
-   "description": "{\"item_group\": \"...\"} تُطبَّق على كل صف"
+   "description": "{\"item_group\": \"...\"} applied to every row"
   },
   {
    "fieldname": "approval_section",
    "fieldtype": "Section Break",
-   "label": "الاعتماد"
+   "label": "Approval"
   },
   {
    "fieldname": "approved_by",
    "fieldtype": "Link",
-   "label": "اعتمدها",
+   "label": "Approved By",
    "options": "User",
    "read_only": 1
   },
@@ -142,30 +142,30 @@
   {
    "fieldname": "approved_on",
    "fieldtype": "Datetime",
-   "label": "تاريخ الاعتماد",
+   "label": "Approved On",
    "read_only": 1
   },
   {
    "fieldname": "result_section",
    "fieldtype": "Section Break",
-   "label": "النتيجة"
+   "label": "Result"
   },
   {
    "fieldname": "total_rows",
    "fieldtype": "Int",
-   "label": "إجمالي الصفوف",
+   "label": "Total Rows",
    "read_only": 1
   },
   {
    "fieldname": "valid_rows",
    "fieldtype": "Int",
-   "label": "صفوف جاهزة",
+   "label": "Valid Rows",
    "read_only": 1
   },
   {
    "fieldname": "processed_rows",
    "fieldtype": "Int",
-   "label": "صفوف تمت معالجتها",
+   "label": "Processed Rows",
    "read_only": 1
   },
   {
@@ -175,37 +175,37 @@
   {
    "fieldname": "success_count",
    "fieldtype": "Int",
-   "label": "نجحت",
+   "label": "Succeeded",
    "read_only": 1
   },
   {
    "fieldname": "failed_count",
    "fieldtype": "Int",
-   "label": "فشلت",
+   "label": "Failed",
    "read_only": 1
   },
   {
    "fieldname": "invalid_rows",
    "fieldtype": "Int",
-   "label": "صفوف بها مشاكل (معاينة)",
+   "label": "Invalid Rows (preview)",
    "read_only": 1
   },
   {
    "fieldname": "report_section",
    "fieldtype": "Section Break",
-   "label": "تقرير الفشل"
+   "label": "Failure Report"
   },
   {
    "fieldname": "failure_report",
    "fieldtype": "Code",
-   "label": "الصفوف الفاشلة",
+   "label": "Failed Rows",
    "options": "JSON",
    "read_only": 1
   },
   {
    "fieldname": "error_message",
    "fieldtype": "Small Text",
-   "label": "الخطأ",
+   "label": "Error",
    "read_only": 1
   }
  ],

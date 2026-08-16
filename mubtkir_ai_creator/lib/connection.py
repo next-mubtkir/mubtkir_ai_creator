@@ -32,9 +32,46 @@ def check_site(client_site_name):
 
 
 def ping_all_sites():
-    """مهمة مجدولة: فحص كل المواقع المفعّلة."""
+    """مهمة مجدولة: فحص كل المواقع المفعّلة + تنبيه عند فشل متكرر."""
+    failed_sites = []
     for name in frappe.get_all("AI Client Site", filters={"is_active": 1}, pluck="name"):
         try:
-            check_site(name)
+            result = check_site(name)
+            if result.get("status") == "Failed":
+                failed_sites.append({"site": name, "error": result.get("error", "")[:200]})
         except Exception:
             frappe.log_error(frappe.get_traceback(), f"AI Creator ping failed: {name}")
+            failed_sites.append({"site": name, "error": "exception during ping"})
+
+    if failed_sites:
+        _send_connection_alert(failed_sites)
+
+
+def _send_connection_alert(failed_sites):
+    """إرسال تنبيه للمشرفين عند فشل اتصال عميل أو أكثر."""
+    lines = [f"⚠ فشل الاتصال بـ {len(failed_sites)} موقع عميل:\n"]
+    for s in failed_sites:
+        lines.append(f"• {s['site']}: {s['error']}")
+    body = "\n".join(lines)
+
+    supervisors = frappe.get_all(
+        "Has Role",
+        filters={"role": ["in", ["AI Creator Supervisor", "System Manager"]], "parenttype": "User"},
+        fields=["parent"],
+        distinct=True,
+    )
+    recipients = list({r.parent for r in supervisors if r.parent and "@" in r.parent})
+
+    if not recipients:
+        frappe.log_error(body, "AI Creator: connection alert — no recipients")
+        return
+
+    try:
+        frappe.sendmail(
+            recipients=recipients[:10],
+            subject=f"AI Creator — فشل اتصال {len(failed_sites)} عميل",
+            message=f"<pre dir='rtl'>{frappe.utils.escape_html(body)}</pre>",
+            now=True,
+        )
+    except Exception:
+        frappe.log_error(body, "AI Creator: connection alert email failed")

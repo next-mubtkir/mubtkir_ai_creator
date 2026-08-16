@@ -785,9 +785,18 @@ def create_bulk_deployment(client, artifact_type, source_record, target_clients,
     frappe.db.commit()
 
     result = deployment_preview(dep.name)
+    dep.reload()
+    targets_detail = []
+    for t in dep.targets:
+        targets_detail.append({
+            "client": t.client_site,
+            "compatibility": t.compatibility or "Unknown",
+            "preview_note": t.preview_note or "",
+        })
     return {
         "deployment": dep.name,
         "summary": result.get("summary"),
+        "targets": targets_detail,
         "note": "تم إنشاء عملية النشر وتشغيل معاينة التوافق (Pending Approval). التنفيذ الفعلي يحتاج اعتمادًا صريحًا من سجل AI Deployment.",
     }
 

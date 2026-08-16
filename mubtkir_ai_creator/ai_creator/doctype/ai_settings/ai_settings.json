@@ -36,17 +36,17 @@
   {
    "fieldname": "tab_model",
    "fieldtype": "Tab Break",
-   "label": "النموذج"
+   "label": "Model"
   },
   {
    "fieldname": "llm_section",
    "fieldtype": "Section Break",
-   "label": "إعدادات النموذج"
+   "label": "Model Settings"
   },
   {
    "fieldname": "llm_provider",
    "fieldtype": "Select",
-   "label": "مزود النموذج",
+   "label": "LLM Provider",
    "options": "Anthropic\nOpenAI\nOllama",
    "default": "Anthropic",
    "reqd": 1
@@ -54,20 +54,20 @@
   {
    "fieldname": "model",
    "fieldtype": "Data",
-   "label": "اسم النموذج",
+   "label": "Model Name",
    "default": "claude-sonnet-4-5"
   },
   {
    "fieldname": "base_url",
    "fieldtype": "Data",
-   "label": "رابط مخصص (اختياري)",
-   "description": "اتركه فارغًا للمزود الرسمي. للاستخدام مع LiteLLM أو نموذج مستضاف ذاتيًا"
+   "label": "Custom URL (optional)",
+   "description": "Leave empty for the official provider. Use for LiteLLM or self-hosted models."
   },
   {
    "fieldname": "heavy_model",
    "fieldtype": "Data",
-   "label": "نموذج المهام الثقيلة (اختياري)",
-   "description": "يُستخدم لتحليل ملفات الاستيراد والتلخيص. اتركه فارغًا لاستخدام النموذج الأساسي"
+   "label": "Heavy Model (optional)",
+   "description": "Used for import file analysis and summarization. Leave empty to use the base model."
   },
   {
    "fieldname": "column_break_1",
@@ -76,46 +76,46 @@
   {
    "fieldname": "api_key",
    "fieldtype": "Password",
-   "label": "مفتاح API للنموذج",
+   "label": "LLM API Key",
    "description": "Required for Anthropic/OpenAI. Leave empty for Ollama (no key needed)."
   },
   {
    "fieldname": "max_tokens",
    "fieldtype": "Int",
-   "label": "أقصى عدد Tokens",
+   "label": "Max Tokens",
    "default": "4096"
   },
   {
    "fieldname": "voice_section",
    "fieldtype": "Section Break",
-   "label": "المايك (تحويل الصوت إلى نص)"
+   "label": "Voice (Speech to Text)"
   },
   {
    "fieldname": "whisper_api_key",
    "fieldtype": "Password",
-   "label": "مفتاح OpenAI (Whisper)",
-   "description": "مفتاح منفصل خاص بـ OpenAI Whisper API لتفريغ المايك — مطلوب بغض النظر عن مزود النموذج الأساسي أعلاه"
+   "label": "OpenAI Key (Whisper)",
+   "description": "Separate OpenAI Whisper API key for voice transcription — required regardless of the main LLM provider above."
   },
   {
    "fieldname": "tab_policy",
    "fieldtype": "Tab Break",
-   "label": "السياسات"
+   "label": "Policies"
   },
   {
    "fieldname": "policy_section",
    "fieldtype": "Section Break",
-   "label": "سياسات المخاطر"
+   "label": "Risk Policies"
   },
   {
    "fieldname": "require_approval_medium",
    "fieldtype": "Check",
-   "label": "طلب موافقة للعمليات متوسطة الخطورة",
+   "label": "Require Approval for Medium Risk",
    "default": "1"
   },
   {
    "fieldname": "require_approval_high",
    "fieldtype": "Check",
-   "label": "طلب موافقة للعمليات عالية الخطورة",
+   "label": "Require Approval for High Risk",
    "default": "1",
    "read_only": 1
   },
@@ -126,26 +126,26 @@
   {
    "fieldname": "allow_cross_client_copy",
    "fieldtype": "Check",
-   "label": "السماح بالنسخ بين حسابات العملاء",
+   "label": "Allow Cross-Client Copy",
    "default": "0"
   },
   {
    "fieldname": "request_timeout",
    "fieldtype": "Int",
-   "label": "مهلة الاتصال (ثانية)",
+   "label": "Request Timeout (seconds)",
    "default": "60"
   },
   {
    "fieldname": "cost_section",
    "fieldtype": "Section Break",
-   "label": "سقف تكلفة الجلسة"
+   "label": "Session Cost Cap"
   },
   {
    "fieldname": "session_token_warning_at",
    "fieldtype": "Int",
-   "label": "تحذير عند تجاوز (Tokens تقديري)",
+   "label": "Warning at (est. Tokens)",
    "default": "50000",
-   "description": "عند تجاوز الجلسة هذا الرقم التقديري، يُضاف تنبيه لرد النموذج دون إيقاف المحادثة"
+   "description": "When estimated tokens exceed this, a warning is appended to the model's reply without stopping the session."
   },
   {
    "fieldname": "column_break_7",
@@ -154,26 +154,26 @@
   {
    "fieldname": "session_token_hard_cap",
    "fieldtype": "Int",
-   "label": "إيقاف كامل عند تجاوز (Tokens تقديري)",
+   "label": "Hard Cap at (est. Tokens)",
    "default": "150000",
-   "description": "عند تجاوز هذا الرقم تُرفض الرسائل الجديدة بهذه الجلسة، ويُطلب من المستخدم بدء جلسة جديدة"
+   "description": "When exceeded, new messages are blocked and the user is asked to start a new session."
   },
   {
    "fieldname": "tab_attachments",
    "fieldtype": "Tab Break",
-   "label": "المرفقات"
+   "label": "Attachments"
   },
   {
    "fieldname": "attachments_section",
    "fieldtype": "Section Break",
-   "label": "حدود قراءة المرفقات"
+   "label": "Attachment Reading Limits"
   },
   {
    "fieldname": "max_rows_per_sheet",
    "fieldtype": "Int",
-   "label": "أقصى عدد صفوف لكل ورقة",
+   "label": "Max Rows per Sheet",
    "default": "200",
-   "description": "يخص مسار المحادثة فقط — أداة الاستيراد تعالج الملف كاملًا بلا هذا الحد"
+   "description": "Chat path only — the import tool processes the full file without this limit."
   },
   {
    "fieldname": "column_break_5",
@@ -182,7 +182,7 @@
   {
    "fieldname": "max_text_chars",
    "fieldtype": "Int",
-   "label": "أقصى عدد أحرف لمحتوى الملف",
+   "label": "Max File Content Characters",
    "default": "30000"
   }
  ],

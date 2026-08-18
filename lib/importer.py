@@ -4,8 +4,16 @@
 - النموذج يرى رؤوس الأعمدة وعيّنة صغيرة فقط (استدعاء واحد)
 - الكود يعالج آلاف الصفوف بلا أي استدعاء إضافي للنموذج
 - التحقق من الحقول الإجبارية وحقول الربط يتم لكل صف قبل الكتابة
+
+المعاينة تبني preview_result بصيغة أعمدة/صفوف تُستخدم مباشرة لتغذية
+frappe-datatable في الواجهة (نفس أسلوب Data Import الأصلي)، وتحفظ
+invalid_row_numbers لكل صف رُصدت فيه مشكلة أثناء المعاينة. عند التنفيذ،
+هذه الصفوف تُتجاوز تلقائيًا دون أي استدعاء API للعميل — تُسجَّل مباشرة
+كفاشلة بنفس السبب المكتشف بالمعاينة — وتُنفَّذ الصفوف السليمة فقط.
 """
 
+import csv
+import datetime
 import io
 import json
 import os
@@ -21,6 +29,32 @@ from mubtkir_ai_creator.lib.client import FrappeSiteClient
 SAMPLE_ROWS = 5          # ما يراه النموذج فقط
 MAX_TOTAL_ROWS = 20000   # حد أمان لحجم الملف
 COMMIT_EVERY = 25        # حفظ التقدّم دوريًا أثناء التنفيذ الطويل
+MAX_PREVIEW_ROWS = 100   # حد صفوف جدول المعاينة (أداء المتصفح)
+
+# صيغ التاريخ الشائعة بالملفات — تُجرَّب بالترتيب حتى تنجح واحدة
+DATE_FORMATS = (
+    "%Y-%m-%d", "%Y/%m/%d",
+    "%d-%m-%Y", "%d/%m/%Y",
+    "%m-%d-%Y", "%m/%d/%Y",
+    "%d.%m.%Y", "%Y-%m-%d %H:%M:%S",
+)
+
+
+def _try_parse_date(value):
+    """يحاول عدة صيغ تاريخ شائعة ويرجع yyyy-mm-dd الموحّدة، أو None لو فشلت كلها."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (datetime.date, datetime.datetime)):
+        return value.strftime("%Y-%m-%d")
+    s = str(value).strip()
+    if not s:
+        return None
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
 
 
 # ---------------- قراءة الملف ----------------
@@ -46,6 +80,43 @@ def read_rows(file_url):
     if len(rows) > MAX_TOTAL_ROWS:
         frappe.throw(f"الملف يحتوي {len(rows)} صفًا — الحد الأقصى {MAX_TOTAL_ROWS}")
 
+    return headers, rows
+
+
+def read_rows_for_import(doc):
+    """يقرأ صفوف الاستيراد من ملف مرفوع أو من رابط Google Sheet — أيهما محدد."""
+    if doc.source_file:
+        return read_rows(doc.source_file)
+    if doc.google_sheet_url:
+        return _read_google_sheet_rows(doc.google_sheet_url)
+    frappe.throw("حدد ملف استيراد أو رابط Google Sheet")
+
+
+def _read_google_sheet_rows(sheet_url):
+    import re
+    import requests
+
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", sheet_url or "")
+    if not m:
+        frappe.throw("رابط Google Sheet غير صالح — لازم يكون بصيغة docs.google.com/spreadsheets/d/...")
+    sheet_id = m.group(1)
+    gid_match = re.search(r"[?#&]gid=(\d+)", sheet_url)
+    gid = gid_match.group(1) if gid_match else "0"
+
+    export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    try:
+        resp = requests.get(export_url, timeout=30)
+    except requests.RequestException as e:
+        frappe.throw(f"تعذّر الوصول لملف Google Sheet: {e}")
+
+    if resp.status_code != 200 or resp.text.lstrip().lower().startswith("<!doctype html"):
+        frappe.throw(
+            "تعذّر قراءة Google Sheet — تأكد أن صلاحية المشاركة \"يمكن لأي شخص لديه الرابط العرض\""
+        )
+
+    headers, rows = _read_csv_rows(resp.content)
+    if len(rows) > MAX_TOTAL_ROWS:
+        frappe.throw(f"الشيت يحتوي {len(rows)} صفًا — الحد الأقصى {MAX_TOTAL_ROWS}")
     return headers, rows
 
 
@@ -91,7 +162,7 @@ def _read_csv_rows(raw):
 
 def analyze(name):
     doc = frappe.get_doc("AI Import", name)
-    headers, rows = read_rows(doc.source_file)
+    headers, rows = read_rows_for_import(doc)
 
     if not headers:
         frappe.throw("لم يُعثر على رؤوس أعمدة في الملف")
@@ -144,38 +215,64 @@ def analyze(name):
             frappe.throw(f"تعذّر قراءة خريطة الحقول من النموذج. الرد: {text[:400]}")
         parsed = json.loads(text[start : end + 1])
 
-    doc.db_set("detected_columns", json.dumps(headers, ensure_ascii=False))
-    doc.db_set("sample_rows", json.dumps(sample, ensure_ascii=False, indent=2))
-    doc.db_set("field_mapping", json.dumps(parsed.get("mapping", {}), ensure_ascii=False, indent=2))
     doc.db_set("total_rows", len(rows))
-    doc.db_set(
-        "analysis_notes",
-        f"أعمدة بلا مقابل: {'، '.join(parsed.get('unmapped_columns') or []) or 'لا يوجد'}\n"
-        f"حقول إجبارية بلا عمود: {'، '.join(parsed.get('missing_required') or []) or 'لا يوجد'}\n"
-        f"{parsed.get('notes') or ''}",
-    )
     doc.db_set("status", "Mapping Ready")
+
+    mapping = parsed.get("mapping") or {}
+    sample_lookup = sample[0] if sample else {}
+    doc.set("field_mapping", [])
+    for column in headers:
+        doc.append(
+            "field_mapping",
+            {
+                "source_column": column,
+                "target_fieldname": mapping.get(column, ""),
+                "sample_value": str(sample_lookup.get(column, ""))[:140],
+            },
+        )
+    doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"headers": headers, "total_rows": len(rows), "mapping": parsed.get("mapping", {}), "notes": parsed.get("notes")}
+    return {"headers": headers, "total_rows": len(rows), "mapping": mapping, "notes": parsed.get("notes"), "sample_rows": sample, "unmapped": parsed.get("unmapped_columns") or []}
 
 
 # ---------------- تحويل الصفوف ----------------
 
-def _build_docs(doc, rows):
-    mapping = json.loads(doc.field_mapping or "{}")
+def _date_fields_for(client, target_doctype):
+    """أسماء الحقول من نوع Date/Datetime لدى الـ DocType الهدف — لتطبيع صيغ التاريخ المختلفة قبل الإرسال."""
+    meta = client.get_meta(target_doctype).get("data", {}) or {}
+    return {
+        f.get("fieldname")
+        for f in meta.get("fields", [])
+        if f.get("fieldtype") in ("Date", "Datetime") and f.get("fieldname")
+    }
+
+
+def _build_docs(doc, rows, date_fields=None):
+    mapping = {r.source_column: r.target_fieldname for r in (doc.field_mapping or []) if r.target_fieldname}
     statics = json.loads(doc.static_values or "{}")
+    date_fields = date_fields or set()
 
     out = []
     for i, row in enumerate(rows, start=2):  # الصف 1 رؤوس الأعمدة
         payload = dict(statics)
+        date_issues = []
         for column, fieldname in mapping.items():
             if not fieldname:
                 continue
             value = row.get(column)
-            if value not in (None, ""):
+            if value in (None, ""):
+                continue
+            if fieldname in date_fields:
+                parsed_date = _try_parse_date(value)
+                if parsed_date:
+                    payload[fieldname] = parsed_date
+                else:
+                    date_issues.append(f"تعذّر فهم التاريخ في {fieldname}: «{value}»")
+                    payload[fieldname] = value
+            else:
                 payload[fieldname] = value
-        out.append({"row_number": i, "data": payload})
+        out.append({"row_number": i, "data": payload, "date_issues": date_issues})
     return out
 
 
@@ -183,9 +280,10 @@ def _build_docs(doc, rows):
 
 def preview(name):
     doc = frappe.get_doc("AI Import", name)
-    _, rows = read_rows(doc.source_file)
+    _, rows = read_rows_for_import(doc)
     client = FrappeSiteClient(doc.client_site)
-    prepared = _build_docs(doc, rows)
+    date_fields = _date_fields_for(client, doc.target_doctype)
+    prepared = _build_docs(doc, rows, date_fields)
 
     # الحقول الإجبارية تُفحص من التعريف مرة واحدة، وحقول الربط تُفحص بقيم فريدة فقط
     spec = tools.describe_required(client, doc.target_doctype, with_options=True)
@@ -193,6 +291,7 @@ def preview(name):
     link_fields = {f["fieldname"]: f["link_to"] for f in spec["required_fields"] if f.get("link_to")}
 
     meta = client.get_meta(doc.target_doctype).get("data", {}) or {}
+    field_labels = {f.get("fieldname"): f.get("label") or f.get("fieldname") for f in meta.get("fields", [])}
     for f in meta.get("fields", []):
         if f.get("fieldtype") == "Link" and f.get("options"):
             link_fields[f.get("fieldname")] = f.get("options")
@@ -217,10 +316,11 @@ def preview(name):
                 invalid_links.setdefault(fieldname, {"doctype": target, "values": []})
                 invalid_links[fieldname]["values"].append(v)
 
-    # فحص الصفوف
+    # فحص الصفوف — بما فيها صيغة التاريخ (تُفحص هنا بدل انتظار فشل التنفيذ الفعلي)
     issues, ok_count = [], 0
+    invalid_row_reasons = {}  # row_number -> [reasons] — يُستخدم لاحقًا لتجاوز الصف تلقائيًا عند التنفيذ
     for item in prepared:
-        row_issues = []
+        row_issues = list(item.get("date_issues") or [])
         for f in required:
             if not item["data"].get(f["fieldname"]):
                 row_issues.append(f"حقل إجباري ناقص: {f.get('label') or f['fieldname']}")
@@ -230,7 +330,8 @@ def preview(name):
                 row_issues.append(f"قيمة ربط غير موجودة في {fieldname}: {v}")
 
         if row_issues:
-            issues.append({"row": item["row_number"], "issues": row_issues})
+            issues.append({"row": item["row_number"], "issues": row_issues, "sample": item["data"]})
+            invalid_row_reasons[str(item["row_number"])] = row_issues
         else:
             ok_count += 1
 
@@ -243,21 +344,85 @@ def preview(name):
 
     summary = f"صفوف جاهزة: {ok_count} | صفوف بها مشاكل: {len(issues)} | الإجمالي: {len(prepared)}"
 
+    # ---- بناء preview_result بصيغة أعمدة/صفوف تُغذّي frappe-datatable مباشرة ----
+    mapped_cols = [
+        {"fieldname": r.target_fieldname, "label": field_labels.get(r.target_fieldname, r.target_fieldname), "source_column": r.source_column, "mapped": True}
+        for r in (doc.field_mapping or []) if r.target_fieldname
+    ]
+    unmapped_cols = [
+        {"fieldname": None, "label": r.source_column, "source_column": r.source_column, "sample_value": r.sample_value, "mapped": False}
+        for r in (doc.field_mapping or []) if not r.target_fieldname
+    ]
+    columns = mapped_cols + unmapped_cols
+
+    invalid_rows_by_num = {i["row"]: i["issues"] for i in issues}
+    data_rows = []
+    for item in prepared[:MAX_PREVIEW_ROWS]:
+        row_issues = invalid_rows_by_num.get(item["row_number"])
+        cells = []
+        for col in mapped_cols:
+            cells.append(item["data"].get(col["fieldname"], ""))
+        for col in unmapped_cols:
+            cells.append("")  # الأعمدة غير المربوطة لا تُرسل، تُعرض فارغة في المعاينة
+        data_rows.append({"row_number": item["row_number"], "values": cells, "ok": not row_issues, "issues": row_issues or []})
+
+    preview_result = {
+        "columns": columns,
+        "rows": data_rows,
+        "max_rows_exceeded": len(prepared) > MAX_PREVIEW_ROWS,
+        "max_rows_in_preview": MAX_PREVIEW_ROWS,
+    }
+
     doc.db_set("total_rows", len(prepared))
     doc.db_set("valid_rows", ok_count)
     doc.db_set("invalid_rows", len(issues))
-    doc.db_set(
-        "preview_result",
-        json.dumps(
-            {"summary": summary, "invalid_links": invalid_links, "row_issues": issues[:100]},
-            ensure_ascii=False,
-            indent=2,
-        ),
-    )
+    doc.db_set("preview_result", json.dumps(preview_result, ensure_ascii=False))
+    doc.db_set("invalid_row_numbers", json.dumps(invalid_row_reasons, ensure_ascii=False))
     doc.db_set("status", "Pending Approval")
     frappe.db.commit()
 
     return {"summary": summary, "valid": ok_count, "invalid": len(issues), "invalid_links": invalid_links, "issues": issues[:50]}
+
+
+@frappe.whitelist()
+def download_failure_rows(name):
+    """يبني ملف CSV يحتوي فقط الصفوف الفاشلة (من آخر معاينة أو تنفيذ) وسبب كل فشل، ويرجع رابط تنزيله."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    doc = frappe.get_doc("AI Import", name)
+
+    rows = []
+    if doc.failure_report:
+        for line in (doc.failure_report or "").splitlines():
+            if line.strip():
+                rows.append({"row": "", "issues": [line.strip()], "sample": {}})
+
+    if not rows and doc.invalid_row_numbers:
+        reasons = json.loads(doc.invalid_row_numbers or "{}")
+        for row_no, issues in reasons.items():
+            rows.append({"row": row_no, "issues": issues, "sample": {}})
+
+    if not rows:
+        frappe.throw("لا توجد صفوف فاشلة مسجّلة لهذا الاستيراد")
+
+    buf = io.StringIO()
+    all_fields = sorted({k for r in rows for k in (r.get("sample") or {}).keys()})
+    writer = csv.writer(buf)
+    writer.writerow(["row_number", "issues", *all_fields])
+    for r in rows:
+        sample = r.get("sample") or {}
+        writer.writerow([r.get("row", ""), " | ".join(r.get("issues") or []), *[sample.get(f, "") for f in all_fields]])
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": f"{doc.name}-failed-rows.csv",
+        "content": buf.getvalue(),
+        "attached_to_doctype": "AI Import",
+        "attached_to_name": doc.name,
+        "is_private": 1,
+    })
+    file_doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return {"file_url": file_doc.file_url}
 
 
 # ---------------- التنفيذ ----------------
@@ -285,30 +450,45 @@ def enqueue_execute(name):
 def execute(name):
     started = time.time()
     doc = frappe.get_doc("AI Import", name)
-    _, rows = read_rows(doc.source_file)
+    _, rows = read_rows_for_import(doc)
     client = FrappeSiteClient(doc.client_site)
-    prepared = _build_docs(doc, rows)
+    date_fields = _date_fields_for(client, doc.target_doctype)
+    prepared = _build_docs(doc, rows, date_fields)
+
+    # صفوف رُصدت كفاشلة أثناء المعاينة — تُتجاوز مباشرة بلا أي استدعاء API،
+    # وتُسجَّل في تقرير الفشل بنفس السبب المكتشف وقتها
+    known_invalid = json.loads(doc.invalid_row_numbers or "{}")
 
     skip_invalid = bool(doc.skip_invalid_rows)
 
     doc.db_set("status", "Executing")
     frappe.db.commit()
 
-    success = failed = 0
+    success = failed = skipped_known = 0
     failures = []
 
     for idx, item in enumerate(prepared, start=1):
-        try:
-            out = client.create_doc(doc.target_doctype, item["data"])
-            created = (out or {}).get("data", {}).get("name")
-            success += 1
-        except Exception as e:
+        row_key = str(item["row_number"])
+        if row_key in known_invalid:
             failed += 1
-            failures.append({"row": item["row_number"], "error": str(e)[:400]})
-            if not skip_invalid:
-                doc.db_set("status", "Failed")
-                doc.db_set("error_message", f"توقف عند الصف {item['row_number']}: {str(e)[:500]}")
-                break
+            skipped_known += 1
+            failures.append({
+                "row": item["row_number"],
+                "error": " | ".join(known_invalid[row_key]),
+                "skipped_at_preview": True,
+            })
+        else:
+            try:
+                out = client.create_doc(doc.target_doctype, item["data"])
+                created = (out or {}).get("data", {}).get("name")
+                success += 1
+            except Exception as e:
+                failed += 1
+                failures.append({"row": item["row_number"], "error": str(e)[:400]})
+                if not skip_invalid:
+                    doc.db_set("status", "Failed")
+                    doc.db_set("error_message", f"توقف عند الصف {item['row_number']}: {str(e)[:500]}")
+                    break
 
         if idx % COMMIT_EVERY == 0:
             doc.db_set("processed_rows", idx)
@@ -330,11 +510,11 @@ def execute(name):
         tool_name="bulk_import",
         risk_level="high",
         tool_input=_dump({"import": doc.name, "doctype": doc.target_doctype, "rows": len(prepared)}),
-        tool_output=_dump({"success": success, "failed": failed}),
+        tool_output=_dump({"success": success, "failed": failed, "skipped_known_invalid": skipped_known}),
         is_success=1 if failed == 0 else 0,
         duration_ms=int((time.time() - started) * 1000),
-        error_message=None if failed == 0 else f"فشل {failed} صفًا — راجع تقرير الفشل",
+        error_message=None if failed == 0 else f"فشل {failed} صفًا ({skipped_known} منها متجاوَز من المعاينة) — راجع تقرير الفشل",
     )
 
     frappe.db.commit()
-    return {"status": doc.status, "success": success, "failed": failed}
+    return {"status": doc.status, "success": success, "failed": failed, "skipped_known_invalid": skipped_known}

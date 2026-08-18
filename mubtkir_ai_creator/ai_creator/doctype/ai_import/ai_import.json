@@ -18,9 +18,6 @@
   "file_section",
   "source_file",
   "google_sheet_url",
-  "mapping_section",
-  "field_mapping",
-  "static_values",
   "warnings_section",
   "import_file_warnings",
   "invalid_row_numbers",
@@ -44,43 +41,230 @@
   "error_message"
  ],
  "fields": [
-  {"fieldname": "title", "fieldtype": "Data", "label": "Import Title", "hidden": 1},
-  {"fieldname": "client_site", "fieldtype": "Link", "label": "Client", "options": "AI Client Site", "reqd": 1, "in_list_view": 1},
-  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
-  {"fieldname": "target_doctype", "fieldtype": "Data", "label": "Document Type", "reqd": 1, "in_list_view": 1, "description": "Choose from the list of DocTypes available on this client's site."},
-  {"fieldname": "import_type", "fieldtype": "Select", "label": "Import Type", "options": "Insert New Records\nUpdate Existing Records", "default": "Insert New Records", "reqd": 1},
-  {"fieldname": "column_break_2", "fieldtype": "Column Break"},
-  {"fieldname": "submit_after_import", "fieldtype": "Check", "label": "Submit After Import", "description": "Only used when the target DocType is submittable on the client's site."},
-  {"fieldname": "mute_emails", "fieldtype": "Check", "label": "Don't Send Emails", "default": "1"},
-  {"fieldname": "skip_invalid_rows", "fieldtype": "Check", "label": "Skip Invalid Rows", "default": "1", "description": "Disabled = import stops at the first unexpected failure. Rows already flagged invalid at preview are always skipped automatically regardless of this setting."},
-  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Draft\nMapping Ready\nPending Approval\nApproved\nQueued\nExecuting\nCompleted\nPartially Failed\nFailed", "default": "Draft", "read_only": 1, "in_list_view": 1},
-  {"fieldname": "file_section", "fieldtype": "Section Break", "label": "File"},
-  {"fieldname": "source_file", "fieldtype": "Attach", "label": "Import File", "description": "xlsx or csv — first sheet only, first row as headers. Leave empty if using Google Sheet URL instead."},
-  {"fieldname": "google_sheet_url", "fieldtype": "Data", "label": "Import from Google Sheets", "description": "Must be a publicly accessible Google Sheets URL"},
-  {"fieldname": "mapping_section", "fieldtype": "Section Break", "label": "Field Mapping (editable)"},
-  {"fieldname": "field_mapping", "fieldtype": "Table", "label": "Field Map", "options": "AI Import Field Map", "description": "Edit the target field for each column — leave empty to skip the column. Use the Map Columns button above the preview table for a friendlier editor."},
-  {"fieldname": "static_values", "fieldtype": "Code", "label": "Static Values for All Rows", "options": "JSON", "description": "{\"item_group\": \"...\"} applied to every row (MUBTKIR addition, not part of native Frappe)"},
-  {"fieldname": "warnings_section", "fieldtype": "Section Break", "label": "Import File Errors and Warnings"},
-  {"fieldname": "import_file_warnings", "fieldtype": "HTML"},
-  {"fieldname": "invalid_row_numbers", "fieldtype": "Code", "options": "JSON", "hidden": 1, "read_only": 1},
-  {"fieldname": "preview_section", "fieldtype": "Section Break", "label": "Preview"},
-  {"fieldname": "preview_html", "fieldtype": "HTML"},
-  {"fieldname": "preview_result", "fieldtype": "Code", "options": "JSON", "hidden": 1, "read_only": 1},
-  {"fieldname": "approval_section", "fieldtype": "Section Break", "label": "Approval", "hidden": 1},
-  {"fieldname": "approved_by", "fieldtype": "Link", "label": "Approved By", "options": "User", "read_only": 1},
-  {"fieldname": "column_break_5", "fieldtype": "Column Break"},
-  {"fieldname": "approved_on", "fieldtype": "Datetime", "label": "Approved On", "read_only": 1},
-  {"fieldname": "result_section", "fieldtype": "Section Break", "label": "Result", "hidden": 1},
-  {"fieldname": "total_rows", "fieldtype": "Int", "label": "Total Rows", "read_only": 1},
-  {"fieldname": "valid_rows", "fieldtype": "Int", "label": "Valid Rows", "read_only": 1},
-  {"fieldname": "processed_rows", "fieldtype": "Int", "label": "Processed Rows", "read_only": 1},
-  {"fieldname": "column_break_6", "fieldtype": "Column Break"},
-  {"fieldname": "success_count", "fieldtype": "Int", "label": "Succeeded", "read_only": 1},
-  {"fieldname": "failed_count", "fieldtype": "Int", "label": "Failed", "read_only": 1},
-  {"fieldname": "invalid_rows", "fieldtype": "Int", "label": "Invalid Rows (preview)", "read_only": 1},
-  {"fieldname": "log_section", "fieldtype": "Section Break", "label": "Import Log"},
-  {"fieldname": "import_log", "fieldtype": "Code", "label": "Import Log", "options": "JSON", "hidden": 1, "read_only": 1},
-  {"fieldname": "error_message", "fieldtype": "Small Text", "label": "Error", "read_only": 1}
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Import Title",
+   "hidden": 1
+  },
+  {
+   "fieldname": "client_site",
+   "fieldtype": "Link",
+   "label": "Client",
+   "options": "AI Client Site",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Data",
+   "label": "Document Type",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Choose from the list of DocTypes available on this client's site."
+  },
+  {
+   "fieldname": "import_type",
+   "fieldtype": "Select",
+   "label": "Import Type",
+   "options": "Insert New Records\nUpdate Existing Records",
+   "default": "Insert New Records",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "submit_after_import",
+   "fieldtype": "Check",
+   "label": "Submit After Import",
+   "description": "Only used when the target DocType is submittable on the client's site."
+  },
+  {
+   "fieldname": "mute_emails",
+   "fieldtype": "Check",
+   "label": "Don't Send Emails",
+   "default": "1"
+  },
+  {
+   "fieldname": "skip_invalid_rows",
+   "fieldtype": "Check",
+   "label": "Skip Invalid Rows",
+   "default": "1",
+   "description": "Disabled = import stops at the first unexpected failure. Rows already flagged invalid at preview are always skipped automatically regardless of this setting."
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nMapping Ready\nPending Approval\nApproved\nQueued\nExecuting\nCompleted\nPartially Failed\nFailed",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "file_section",
+   "fieldtype": "Section Break",
+   "label": "File"
+  },
+  {
+   "fieldname": "source_file",
+   "fieldtype": "Attach",
+   "label": "Import File",
+   "description": "xlsx or csv — first sheet only, first row as headers. Leave empty if using Google Sheet URL instead."
+  },
+  {
+   "fieldname": "google_sheet_url",
+   "fieldtype": "Data",
+   "label": "Import from Google Sheets",
+   "description": "Must be a publicly accessible Google Sheets URL"
+  },
+  {
+   "fieldname": "mapping_section",
+   "fieldtype": "Section Break",
+   "label": "Field Mapping (editable)",
+   "hidden": 1
+  },
+  {
+   "fieldname": "field_mapping",
+   "fieldtype": "Table",
+   "label": "Field Map",
+   "options": "AI Import Field Map",
+   "hidden": 1
+  },
+  {
+   "fieldname": "static_values",
+   "fieldtype": "Code",
+   "label": "Static Values for All Rows",
+   "options": "JSON",
+   "description": "{\"item_group\": \"...\"} applied to every row (MUBTKIR addition, not part of native Frappe)",
+   "hidden": 1
+  },
+  {
+   "fieldname": "warnings_section",
+   "fieldtype": "Section Break",
+   "label": "Import File Errors and Warnings"
+  },
+  {
+   "fieldname": "import_file_warnings",
+   "fieldtype": "HTML"
+  },
+  {
+   "fieldname": "invalid_row_numbers",
+   "fieldtype": "Code",
+   "options": "JSON",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "preview_section",
+   "fieldtype": "Section Break",
+   "label": "Preview"
+  },
+  {
+   "fieldname": "preview_html",
+   "fieldtype": "HTML"
+  },
+  {
+   "fieldname": "preview_result",
+   "fieldtype": "Code",
+   "options": "JSON",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval",
+   "hidden": 1
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_on",
+   "fieldtype": "Datetime",
+   "label": "Approved On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result",
+   "hidden": 1
+  },
+  {
+   "fieldname": "total_rows",
+   "fieldtype": "Int",
+   "label": "Total Rows",
+   "read_only": 1
+  },
+  {
+   "fieldname": "valid_rows",
+   "fieldtype": "Int",
+   "label": "Valid Rows",
+   "read_only": 1
+  },
+  {
+   "fieldname": "processed_rows",
+   "fieldtype": "Int",
+   "label": "Processed Rows",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "success_count",
+   "fieldtype": "Int",
+   "label": "Succeeded",
+   "read_only": 1
+  },
+  {
+   "fieldname": "failed_count",
+   "fieldtype": "Int",
+   "label": "Failed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "invalid_rows",
+   "fieldtype": "Int",
+   "label": "Invalid Rows (preview)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "log_section",
+   "fieldtype": "Section Break",
+   "label": "Import Log"
+  },
+  {
+   "fieldname": "import_log",
+   "fieldtype": "Code",
+   "label": "Import Log",
+   "options": "JSON",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error",
+   "read_only": 1
+  }
  ],
  "links": [],
  "modified": "2026-01-01 00:00:00.000000",
@@ -88,9 +272,26 @@
  "name": "AI Import",
  "owner": "Administrator",
  "permissions": [
-  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager", "share": 1},
-  {"create": 1, "read": 1, "write": 1, "role": "AI Creator User"},
-  {"create": 1, "read": 1, "write": 1, "role": "AI Creator Supervisor"}
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "AI Creator User"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "AI Creator Supervisor"
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",

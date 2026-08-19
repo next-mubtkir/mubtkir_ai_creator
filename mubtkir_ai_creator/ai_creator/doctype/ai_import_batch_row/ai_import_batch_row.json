@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "creation": "2026-08-18 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "batch_number",
+  "start_row",
+  "end_row",
+  "column_break_1",
+  "status",
+  "success_count",
+  "fail_count",
+  "error_summary"
+ ],
+ "fields": [
+  {
+   "fieldname": "batch_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Batch #",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_row",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Start Row"
+  },
+  {
+   "fieldname": "end_row",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "End Row"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nRunning\nSuccess\nPartial\nFailed"
+  },
+  {
+   "default": "0",
+   "fieldname": "success_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Success"
+  },
+  {
+   "default": "0",
+   "fieldname": "fail_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Failed"
+  },
+  {
+   "fieldname": "error_summary",
+   "fieldtype": "Small Text",
+   "label": "Errors"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-18 00:00:00",
+ "modified_by": "Administrator",
+ "module": "AI Creator",
+ "name": "AI Import Batch Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "batch_number",
+ "sort_order": "ASC",
+ "states": []
+}

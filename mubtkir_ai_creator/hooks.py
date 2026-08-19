@@ -23,3 +23,4 @@ scheduler_events = {
 }
 
 app_include_js = []
+app_include_css = []

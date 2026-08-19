@@ -1,0 +1,376 @@
+{
+ "actions": [],
+ "autoname": "AI-IMP-.#####",
+ "creation": "2026-08-18 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "client_site",
+  "remote_doctype",
+  "import_type",
+  "column_break_main",
+  "status",
+  "started_by",
+  "started_on",
+  "finished_on",
+  "source_section",
+  "source_file",
+  "source_file_name",
+  "google_sheet_url",
+  "options_section",
+  "submit_after_import",
+  "skip_failed_rows",
+  "send_emails",
+  "column_break_opts",
+  "ignore_empty_values",
+  "ignore_link_validation",
+  "update_child_tables",
+  "import_attachments",
+  "run_as_background_job",
+  "batch_section",
+  "batch_size",
+  "batches",
+  "mapping_section",
+  "mapping_name",
+  "column_mapping",
+  "progress_section",
+  "total_rows",
+  "imported_rows",
+  "failed_rows",
+  "skipped_rows",
+  "column_break_progress",
+  "current_batch",
+  "total_batches",
+  "progress_percent",
+  "duration",
+  "errors_section",
+  "error_log",
+  "resume_section",
+  "last_successful_row",
+  "is_resumable"
+ ],
+ "fields": [
+  {
+   "fieldname": "client_site",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Client Site",
+   "options": "AI Client Site",
+   "reqd": 1
+  },
+  {
+   "fieldname": "remote_doctype",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Remote DocType",
+   "reqd": 1
+  },
+  {
+   "default": "Insert",
+   "fieldname": "import_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Import Type",
+   "options": "Insert\nUpdate\nInsert if Missing\nUpdate if Exists\nSubmit\nCancel\nRename",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nMapping\nPreviewing\nQueued\nRunning\nSuccess\nPartial Success\nFailed\nCancelled\nResuming",
+   "read_only": 1
+  },
+  {
+   "default": "__user",
+   "fieldname": "started_by",
+   "fieldtype": "Link",
+   "label": "Started By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "started_on",
+   "fieldtype": "Datetime",
+   "label": "Started On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "finished_on",
+   "fieldtype": "Datetime",
+   "label": "Finished On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "Source File"
+  },
+  {
+   "fieldname": "source_file",
+   "fieldtype": "Attach",
+   "label": "Upload File (Excel/CSV)"
+  },
+  {
+   "fieldname": "source_file_name",
+   "fieldtype": "Data",
+   "label": "File Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "google_sheet_url",
+   "fieldtype": "Data",
+   "label": "Google Sheet URL",
+   "options": "URL"
+  },
+  {
+   "fieldname": "options_section",
+   "fieldtype": "Section Break",
+   "label": "Import Options"
+  },
+  {
+   "default": "0",
+   "fieldname": "submit_after_import",
+   "fieldtype": "Check",
+   "label": "Submit After Import"
+  },
+  {
+   "default": "1",
+   "fieldname": "skip_failed_rows",
+   "fieldtype": "Check",
+   "label": "Skip Failed Rows"
+  },
+  {
+   "default": "0",
+   "fieldname": "send_emails",
+   "fieldtype": "Check",
+   "label": "Send Emails"
+  },
+  {
+   "fieldname": "column_break_opts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "ignore_empty_values",
+   "fieldtype": "Check",
+   "label": "Ignore Empty Values"
+  },
+  {
+   "default": "0",
+   "fieldname": "ignore_link_validation",
+   "fieldtype": "Check",
+   "label": "Ignore Link Validation"
+  },
+  {
+   "default": "0",
+   "fieldname": "update_child_tables",
+   "fieldtype": "Check",
+   "label": "Update Child Tables"
+  },
+  {
+   "default": "0",
+   "fieldname": "import_attachments",
+   "fieldtype": "Check",
+   "label": "Import Attachments"
+  },
+  {
+   "default": "1",
+   "fieldname": "run_as_background_job",
+   "fieldtype": "Check",
+   "label": "Run as Background Job"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "batch_section",
+   "fieldtype": "Section Break",
+   "label": "Batches"
+  },
+  {
+   "default": "200",
+   "fieldname": "batch_size",
+   "fieldtype": "Int",
+   "label": "Batch Size"
+  },
+  {
+   "fieldname": "batches",
+   "fieldtype": "Table",
+   "label": "Batches",
+   "options": "AI Import Batch Row",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "mapping_section",
+   "fieldtype": "Section Break",
+   "label": "Field Mapping"
+  },
+  {
+   "fieldname": "mapping_name",
+   "fieldtype": "Link",
+   "label": "Saved Mapping",
+   "options": "AI Import Mapping"
+  },
+  {
+   "fieldname": "column_mapping",
+   "fieldtype": "Code",
+   "label": "Column Mapping (JSON)",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "progress_section",
+   "fieldtype": "Section Break",
+   "label": "Progress"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_rows",
+   "fieldtype": "Int",
+   "label": "Total Rows",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "imported_rows",
+   "fieldtype": "Int",
+   "label": "Imported Rows",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_rows",
+   "fieldtype": "Int",
+   "label": "Failed Rows",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "skipped_rows",
+   "fieldtype": "Int",
+   "label": "Skipped Rows",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_progress",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "current_batch",
+   "fieldtype": "Int",
+   "label": "Current Batch",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_batches",
+   "fieldtype": "Int",
+   "label": "Total Batches",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "progress_percent",
+   "fieldtype": "Percent",
+   "label": "Progress %",
+   "read_only": 1
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Duration",
+   "label": "Duration",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "errors_section",
+   "fieldtype": "Section Break",
+   "label": "Error Log"
+  },
+  {
+   "fieldname": "error_log",
+   "fieldtype": "Code",
+   "label": "Error Details (JSON)",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "resume_section",
+   "fieldtype": "Section Break",
+   "label": "Resume"
+  },
+  {
+   "default": "0",
+   "fieldname": "last_successful_row",
+   "fieldtype": "Int",
+   "label": "Last Successful Row",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_resumable",
+   "fieldtype": "Check",
+   "label": "Is Resumable",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [
+  {
+   "link_doctype": "AI Import Log",
+   "link_fieldname": "remote_import"
+  }
+ ],
+ "modified": "2026-08-18 00:00:00",
+ "modified_by": "Administrator",
+ "module": "AI Creator",
+ "name": "AI Remote Import",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "AI Creator Supervisor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "AI Creator User",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "remote_doctype",
+ "track_changes": 1
+}

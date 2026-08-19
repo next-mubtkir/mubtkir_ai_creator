@@ -1,0 +1,96 @@
+{
+ "actions": [],
+ "autoname": "field:mapping_title",
+ "creation": "2026-08-18 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "mapping_title",
+  "client_site",
+  "remote_doctype",
+  "column_break_1",
+  "is_default",
+  "mapping_data",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "mapping_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mapping Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "client_site",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Client Site",
+   "options": "AI Client Site"
+  },
+  {
+   "fieldname": "remote_doctype",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Remote DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "label": "Default Mapping"
+  },
+  {
+   "fieldname": "mapping_data",
+   "fieldtype": "Code",
+   "label": "Mapping Data (JSON)",
+   "options": "JSON",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00",
+ "modified_by": "Administrator",
+ "module": "AI Creator",
+ "name": "AI Import Mapping",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "AI Creator Supervisor",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "AI Creator User",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

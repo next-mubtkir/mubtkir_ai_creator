@@ -1,0 +1,28 @@
+{
+ "content": null,
+ "creation": "2026-08-18 00:00:00",
+ "docstatus": 0,
+ "doctype": "Page",
+ "icon": "icon-upload",
+ "idx": 0,
+ "modified": "2026-08-18 00:00:00",
+ "modified_by": "Administrator",
+ "module": "AI Creator",
+ "name": "remote-import",
+ "owner": "Administrator",
+ "page_name": "remote-import",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "AI Creator Supervisor"
+  },
+  {
+   "role": "AI Creator User"
+  }
+ ],
+ "standard": "Yes",
+ "system_page": 0,
+ "title": "Remote Import"
+}

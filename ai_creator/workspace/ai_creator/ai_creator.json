@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\": \"hdr_main\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Mubtkir AI Creator</b></span>\", \"col\": 12}}, {\"id\": \"para_1\", \"type\": \"paragraph\", \"data\": {\"text\": \"منصة مركزية بالذكاء الاصطناعي لإدارة ودعم وتخصيص حسابات ERPNext للعملاء\", \"col\": 12}}, {\"id\": \"sc_chat\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"واجهة المحادثة\", \"col\": 3}}, {\"id\": \"sc_clients\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Client Site\", \"col\": 3}}, {\"id\": \"sc_tasks\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Task\", \"col\": 3}}, {\"id\": \"sc_deploy\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Deployment\", \"col\": 3}}, {\"id\": \"sc_import\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Import\", \"col\": 3}}, {\"id\": \"sc_logs\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Action Log\", \"col\": 3}}, {\"id\": \"sp_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"card_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"التشغيل\", \"col\": 4}}, {\"id\": \"card_audit\", \"type\": \"card\", \"data\": {\"card_name\": \"التدقيق والمراجعة\", \"col\": 4}}, {\"id\": \"card_cfg\", \"type\": \"card\", \"data\": {\"card_name\": \"الإعدادات\", \"col\": 4}}, {\"id\": \"card_lib\", \"type\": \"card\", \"data\": {\"card_name\": \"مكتبة القوالب\", \"col\": 4}}]",
+ "content": "[{\"id\": \"hdr_main\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Mubtkir AI Creator</b></span>\", \"col\": 12}}, {\"id\": \"para_1\", \"type\": \"paragraph\", \"data\": {\"text\": \"منصة مركزية بالذكاء الاصطناعي لإدارة ودعم وتخصيص حسابات ERPNext للعملاء\", \"col\": 12}}, {\"id\": \"sc_chat\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"واجهة المحادثة\", \"col\": 3}}, {\"id\": \"sc_clients\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Client Site\", \"col\": 3}}, {\"id\": \"sc_tasks\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Task\", \"col\": 3}}, {\"id\": \"sc_deploy\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Deployment\", \"col\": 3}},  {\"id\": \"sc_logs\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"AI Action Log\", \"col\": 3}}, {\"id\": \"sp_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"card_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"التشغيل\", \"col\": 4}}, {\"id\": \"card_audit\", \"type\": \"card\", \"data\": {\"card_name\": \"التدقيق والمراجعة\", \"col\": 4}}, {\"id\": \"card_cfg\", \"type\": \"card\", \"data\": {\"card_name\": \"الإعدادات\", \"col\": 4}}, {\"id\": \"card_lib\", \"type\": \"card\", \"data\": {\"card_name\": \"مكتبة القوالب\", \"col\": 4}}]",
  "creation": "2026-01-01 00:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -69,18 +69,7 @@
    "dependencies": "",
    "description": "نشر عملية موحّدة على عدة عملاء مع معاينة توافق"
   },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "AI Import",
-   "link_count": 0,
-   "link_to": "AI Import",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link",
-   "dependencies": "",
-   "description": "استيراد جماعي من Excel/CSV مع خريطة حقول ومعاينة"
-  },
+
   {
    "hidden": 0,
    "is_query_report": 0,
@@ -181,13 +170,6 @@
    "doc_view": "List",
    "label": "AI Deployment",
    "link_to": "AI Deployment",
-   "type": "DocType"
-  },
-  {
-   "color": "Purple",
-   "doc_view": "List",
-   "label": "AI Import",
-   "link_to": "AI Import",
    "type": "DocType"
   },
   {

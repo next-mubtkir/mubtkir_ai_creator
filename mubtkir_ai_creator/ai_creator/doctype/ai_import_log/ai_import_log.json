@@ -1,0 +1,206 @@
+{
+ "actions": [],
+ "autoname": "AI-ILOG-.#####",
+ "creation": "2026-08-18 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "remote_import",
+  "client_site",
+  "import_user",
+  "column_break_1",
+  "remote_doctype",
+  "import_type",
+  "status",
+  "file_section",
+  "file_name",
+  "mapping_used",
+  "column_break_file",
+  "source_type",
+  "counters_section",
+  "total_rows",
+  "imported_rows",
+  "failed_rows",
+  "skipped_rows",
+  "column_break_counters",
+  "duration",
+  "avg_speed",
+  "started_on",
+  "finished_on",
+  "errors_section",
+  "errors"
+ ],
+ "fields": [
+  {
+   "fieldname": "remote_import",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Remote Import",
+   "options": "AI Remote Import"
+  },
+  {
+   "fieldname": "client_site",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Client Site",
+   "options": "AI Client Site",
+   "reqd": 1
+  },
+  {
+   "fieldname": "import_user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remote_doctype",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "DocType"
+  },
+  {
+   "fieldname": "import_type",
+   "fieldtype": "Data",
+   "label": "Import Type"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nRunning\nSuccess\nPartial Success\nFailed\nCancelled"
+  },
+  {
+   "fieldname": "file_section",
+   "fieldtype": "Section Break",
+   "label": "File Info"
+  },
+  {
+   "fieldname": "file_name",
+   "fieldtype": "Data",
+   "label": "File Name"
+  },
+  {
+   "fieldname": "mapping_used",
+   "fieldtype": "Link",
+   "label": "Mapping Used",
+   "options": "AI Import Mapping"
+  },
+  {
+   "fieldname": "column_break_file",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_type",
+   "fieldtype": "Select",
+   "label": "Source Type",
+   "options": "Excel\nCSV\nGoogle Sheet"
+  },
+  {
+   "fieldname": "counters_section",
+   "fieldtype": "Section Break",
+   "label": "Results"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_rows",
+   "fieldtype": "Int",
+   "label": "Total Rows"
+  },
+  {
+   "default": "0",
+   "fieldname": "imported_rows",
+   "fieldtype": "Int",
+   "label": "Imported"
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_rows",
+   "fieldtype": "Int",
+   "label": "Failed"
+  },
+  {
+   "default": "0",
+   "fieldname": "skipped_rows",
+   "fieldtype": "Int",
+   "label": "Skipped"
+  },
+  {
+   "fieldname": "column_break_counters",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Duration",
+   "label": "Duration"
+  },
+  {
+   "fieldname": "avg_speed",
+   "fieldtype": "Float",
+   "label": "Avg Rows/Sec"
+  },
+  {
+   "fieldname": "started_on",
+   "fieldtype": "Datetime",
+   "label": "Started"
+  },
+  {
+   "fieldname": "finished_on",
+   "fieldtype": "Datetime",
+   "label": "Finished"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "errors_section",
+   "fieldtype": "Section Break",
+   "label": "Errors"
+  },
+  {
+   "fieldname": "errors",
+   "fieldtype": "Code",
+   "label": "Error Details (JSON)",
+   "options": "JSON"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00",
+ "modified_by": "Administrator",
+ "module": "AI Creator",
+ "name": "AI Import Log",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "AI Creator Supervisor"
+  },
+  {
+   "read": 1,
+   "role": "AI Creator User"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

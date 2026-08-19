@@ -10,6 +10,38 @@ from mubtkir_ai_creator.lib.client import FrappeSiteClient
 from mubtkir_ai_creator.lib.remote_import.preview import parse_file
 
 
+def _decode_error(error_str):
+    """Decode Unicode escapes in API error messages to readable Arabic text."""
+    try:
+        # Try to extract JSON from the error string and decode it
+        if '{"exception"' in error_str or '{"exc_type"' in error_str:
+            import re
+            json_match = re.search(r'\{.*\}', error_str)
+            if json_match:
+                decoded = json.loads(json_match.group())
+                msg = decoded.get("exception") or decoded.get("_server_messages") or str(decoded)
+                # _server_messages is often a JSON-encoded list of JSON strings
+                if isinstance(msg, str) and msg.startswith("["):
+                    try:
+                        msgs = json.loads(msg)
+                        parts = []
+                        for m in msgs:
+                            try:
+                                parts.append(json.loads(m).get("message", m))
+                            except (json.JSONDecodeError, TypeError, AttributeError):
+                                parts.append(str(m))
+                        return " | ".join(parts)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                return str(msg)
+        # Try unicode_escape decode for \uXXXX sequences
+        if "\\u0" in error_str:
+            return error_str.encode("utf-8").decode("unicode_escape")
+    except Exception:
+        pass
+    return error_str
+
+
 def run_import(import_name, start_row=0):
     """Execute the import operation.
 
@@ -78,7 +110,7 @@ def run_import(import_name, start_row=0):
                 doc.db_set("last_successful_row", actual_row)
 
             except Exception as e:
-                error_msg = str(e)[:500]
+                error_msg = _decode_error(str(e))[:500]
                 if doc.skip_failed_rows:
                     failed += 1
                     batch_fail += 1

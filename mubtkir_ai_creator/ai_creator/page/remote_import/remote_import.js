@@ -258,13 +258,20 @@ class RemoteImportPage {
         container.html(`
             <div class="ri-panel">
                 <div class="ri-panel-title">${__("رفع ملف البيانات")}</div>
-                <div id="ri-file-upload-area"></div>
+                <div id="ri-file-upload-area">
+                    <div class="ri-upload-zone" id="ri-drop-zone">
+                        <div style="font-size:36px; margin-bottom:8px">📁</div>
+                        <div style="font-weight:600">${__("اضغط لاختيار ملف Excel أو CSV")}</div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-top:4px">.xlsx, .xls, .csv</div>
+                        <input type="file" id="ri-file-input" accept=".xlsx,.xls,.csv" style="display:none">
+                    </div>
+                </div>
+                <div id="ri-file-info" style="margin-top:12px"></div>
                 <div style="margin-top:16px; text-align:center">
                     <button class="btn btn-xs btn-default" id="ri-btn-download-template">
                         ${__("⬇ تحميل قالب الاستيراد")}
                     </button>
                 </div>
-                <div id="ri-file-info" style="margin-top:12px"></div>
             </div>
             <div class="ri-actions">
                 <button class="btn btn-default btn-sm" id="ri-btn-prev-2">${__("← السابق")}</button>
@@ -272,37 +279,55 @@ class RemoteImportPage {
             </div>
         `);
 
-        // File upload control
-        this.file_control = frappe.ui.form.make_control({
-            parent: container.find("#ri-file-upload-area"),
-            df: {
-                fieldname: "source_file",
-                fieldtype: "Attach",
-                label: __("ملف Excel أو CSV"),
-            },
-            render_input: true,
+        // Click to upload
+        container.find("#ri-drop-zone").on("click", () => {
+            container.find("#ri-file-input").trigger("click");
         });
 
-        this.file_control.$input &&
-            this.file_control.$input.on("change", () => {
-                setTimeout(() => this.on_file_attached(container), 500);
-            });
+        // File selected
+        container.find("#ri-file-input").on("change", (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        // Poll for file attachment
-        this.file_control.on_upload_complete = (attachment) => {
-            this.file_url = attachment.file_url;
-            this.on_file_attached(container);
-        };
+            const info_div = container.find("#ri-file-info");
+            info_div.html(`<div class="text-muted" style="font-size:13px">⏳ ${__("جاري رفع الملف...")}</div>`);
 
-        // Also handle when value changes
-        const orig_set = this.file_control.set_value.bind(this.file_control);
-        this.file_control.set_value = (val) => {
-            orig_set(val);
-            if (val) {
-                this.file_url = val;
-                this.on_file_attached(container);
-            }
-        };
+            // Upload via Frappe API
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("is_private", 1);
+            formData.append("folder", "Home");
+
+            fetch("/api/method/upload_file", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "X-Frappe-CSRF-Token": frappe.csrf_token,
+                },
+            })
+                .then((r) => r.json())
+                .then((resp) => {
+                    if (resp.message && resp.message.file_url) {
+                        this.file_url = resp.message.file_url;
+                        this.file_name = file.name;
+
+                        container.find("#ri-drop-zone").addClass("has-file").html(`
+                            <div style="font-size:36px; margin-bottom:8px">✅</div>
+                            <div style="font-weight:600">${frappe.utils.escape_html(file.name)}</div>
+                            <div style="font-size:12px; color:var(--text-muted); margin-top:4px">
+                                ${(file.size / 1024).toFixed(1)} KB — ${__("اضغط لتغيير الملف")}
+                            </div>
+                        `);
+                        info_div.html("");
+                        container.find("#ri-btn-next-2").prop("disabled", false);
+                    } else {
+                        info_div.html(`<div class="text-danger" style="font-size:13px">✗ ${__("فشل رفع الملف")}</div>`);
+                    }
+                })
+                .catch((err) => {
+                    info_div.html(`<div class="text-danger" style="font-size:13px">✗ ${err.message || __("خطأ في الرفع")}</div>`);
+                });
+        });
 
         // Download template
         container.find("#ri-btn-download-template").on("click", () => {
@@ -319,17 +344,6 @@ class RemoteImportPage {
             }
             this.load_metadata_and_preview().then(() => this.next_step());
         });
-    }
-
-    on_file_attached(container) {
-        const val = this.file_control.get_value();
-        if (val) {
-            this.file_url = val;
-            container.find("#ri-file-info").html(
-                `<div class="text-success" style="font-size:13px">✓ ${__("تم رفع الملف")}: ${val.split("/").pop()}</div>`
-            );
-            container.find("#ri-btn-next-2").prop("disabled", false);
-        }
     }
 
     async load_metadata_and_preview() {

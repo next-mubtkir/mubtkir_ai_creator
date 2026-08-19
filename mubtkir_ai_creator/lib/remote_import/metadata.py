@@ -23,20 +23,27 @@ def discover_doctypes(client_site, search_term=None):
 
 
 def get_doctype_meta(client_site, doctype):
-    """Get full metadata for a remote DocType including all fields and child tables."""
+    """Get full metadata for a remote DocType including all fields, child tables, and Arabic translations."""
     client = get_client(client_site)
     resp = client.get_meta(doctype)
     data = resp.get("data", {})
+
+    # Fetch Arabic translations for field labels
+    translations = _fetch_translations(client, doctype, data.get("fields", []))
 
     fields = data.get("fields", [])
     parent_fields = []
     child_tables = {}
 
     for f in fields:
+        label = f.get("label") or ""
+        translated = translations.get(label, "")
         field_info = {
             "fieldname": f.get("fieldname"),
             "fieldtype": f.get("fieldtype"),
-            "label": f.get("label"),
+            "label": label,
+            "translated_label": translated,
+            "display_label": translated or label,  # Arabic first, fallback English
             "reqd": f.get("reqd", 0),
             "options": f.get("options"),
             "default": f.get("default"),
@@ -114,3 +121,36 @@ _SKIPPED_FIELDTYPES = {
     "Section Break", "Column Break", "Tab Break", "Fold",
     "Heading", "HTML", "Button", "Image",
 }
+
+
+def _fetch_translations(client, doctype, fields):
+    """Fetch Arabic translations for field labels from the remote site.
+
+    Returns dict: {english_label: arabic_translation}
+    """
+    translations = {}
+    labels = [f.get("label") for f in fields if f.get("label")]
+    if not labels:
+        return translations
+
+    try:
+        # Fetch translations for "ar" language
+        resp = client.get_list(
+            "Translation",
+            fields=["source_text", "translated_text"],
+            filters=[
+                ["language", "=", "ar"],
+                ["source_text", "in", labels],
+            ],
+            limit=500,
+        )
+        for row in resp.get("data", []):
+            src = row.get("source_text", "")
+            tr = row.get("translated_text", "")
+            if src and tr:
+                translations[src] = tr
+    except Exception:
+        # Translation fetch is best-effort — don't break if it fails
+        pass
+
+    return translations

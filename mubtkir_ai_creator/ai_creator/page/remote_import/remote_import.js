@@ -155,26 +155,40 @@ class RemoteImportPage {
         });
         if (this.remote_doctype) this.doctype_control.set_value(this.remote_doctype);
 
-        // Autocomplete for doctype
-        this.doctype_control.$input.on("input", frappe.utils.debounce(() => {
-            const val = this.doctype_control.get_value();
+        // Autocomplete for doctype — trigger on 1 char, preload on focus
+        const _loadDoctypes = (searchTerm) => {
             const client = this.client_control.get_value();
-            if (!client || !val || val.length < 2) return;
+            if (!client) return;
 
             frappe.call({
                 method: "mubtkir_ai_creator.api.importer.discover_doctypes",
-                args: { client_site: client, search_term: val },
+                args: { client_site: client, search_term: searchTerm || "" },
                 callback: (r) => {
                     if (r.message) {
                         const items = r.message.map((d) => d.name);
                         this.doctype_control.awesomplete =
                             this.doctype_control.awesomplete ||
-                            new Awesomplete(this.doctype_control.$input[0], { minChars: 1, maxItems: 20 });
+                            new Awesomplete(this.doctype_control.$input[0], { minChars: 0, maxItems: 30 });
                         this.doctype_control.awesomplete.list = items;
                         this.doctype_control.awesomplete.evaluate();
                     }
                 },
             });
+        };
+
+        // Preload on focus (show all doctypes)
+        this.doctype_control.$input.on("focus", () => {
+            if (!this.doctype_control.get_value()) {
+                _loadDoctypes("");
+            }
+        });
+
+        // Search on input (1 char minimum)
+        this.doctype_control.$input.on("input", frappe.utils.debounce(() => {
+            const val = this.doctype_control.get_value();
+            if (val && val.length >= 1) {
+                _loadDoctypes(val);
+            }
         }, 300));
 
         // Import type
@@ -259,12 +273,11 @@ class RemoteImportPage {
             <div class="ri-panel">
                 <div class="ri-panel-title">${__("رفع ملف البيانات")}</div>
                 <div id="ri-file-upload-area">
-                    <label class="ri-upload-zone" id="ri-drop-zone" for="ri-file-input" style="cursor:pointer">
+                    <div class="ri-upload-zone" id="ri-drop-zone" style="cursor:pointer">
                         <div style="font-size:36px; margin-bottom:8px">📁</div>
                         <div style="font-weight:600">${__("اضغط لاختيار ملف Excel أو CSV")}</div>
                         <div style="font-size:12px; color:var(--text-muted); margin-top:4px">.xlsx, .xls, .csv</div>
-                    </label>
-                    <input type="file" id="ri-file-input" accept=".xlsx,.xls,.csv" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden">
+                    </div>
                 </div>
                 <div id="ri-file-info" style="margin-top:12px"></div>
                 <div style="margin-top:16px; text-align:center">
@@ -279,49 +292,27 @@ class RemoteImportPage {
             </div>
         `);
 
-        // File selected
-        container.find("#ri-file-input").on("change", (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const info_div = container.find("#ri-file-info");
-            info_div.html(`<div class="text-muted" style="font-size:13px">⏳ ${__("جاري رفع الملف...")}</div>`);
-
-            // Upload via Frappe API
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("is_private", 1);
-            formData.append("folder", "Home");
-
-            fetch("/api/method/upload_file", {
-                method: "POST",
-                body: formData,
-                headers: {
-                    "X-Frappe-CSRF-Token": frappe.csrf_token,
+        // Open Frappe FileUploader on click
+        container.find("#ri-drop-zone").on("click", () => {
+            new frappe.ui.FileUploader({
+                restrictions: {
+                    allowed_file_types: [".xlsx", ".xls", ".csv"],
                 },
-            })
-                .then((r) => r.json())
-                .then((resp) => {
-                    if (resp.message && resp.message.file_url) {
-                        this.file_url = resp.message.file_url;
-                        this.file_name = file.name;
+                on_success: (file_doc) => {
+                    this.file_url = file_doc.file_url;
+                    this.file_name = file_doc.file_name;
 
-                        container.find("#ri-drop-zone").addClass("has-file").html(`
-                            <div style="font-size:36px; margin-bottom:8px">✅</div>
-                            <div style="font-weight:600">${frappe.utils.escape_html(file.name)}</div>
-                            <div style="font-size:12px; color:var(--text-muted); margin-top:4px">
-                                ${(file.size / 1024).toFixed(1)} KB — ${__("اضغط لتغيير الملف")}
-                            </div>
-                        `);
-                        info_div.html("");
-                        container.find("#ri-btn-next-2").prop("disabled", false);
-                    } else {
-                        info_div.html(`<div class="text-danger" style="font-size:13px">✗ ${__("فشل رفع الملف")}</div>`);
-                    }
-                })
-                .catch((err) => {
-                    info_div.html(`<div class="text-danger" style="font-size:13px">✗ ${err.message || __("خطأ في الرفع")}</div>`);
-                });
+                    container.find("#ri-drop-zone").addClass("has-file").html(`
+                        <div style="font-size:36px; margin-bottom:8px">✅</div>
+                        <div style="font-weight:600">${frappe.utils.escape_html(file_doc.file_name)}</div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-top:4px">
+                            ${__("اضغط لتغيير الملف")}
+                        </div>
+                    `);
+                    container.find("#ri-file-info").html("");
+                    container.find("#ri-btn-next-2").prop("disabled", false);
+                },
+            });
         });
 
         // Download template
@@ -383,7 +374,7 @@ class RemoteImportPage {
             const reqd = f.reqd ? " *" : "";
             field_options.push({
                 value: f.fieldname,
-                label: `${f.label || f.fieldname}${reqd} (${f.fieldtype})`,
+                label: `${f.display_label || f.label || f.fieldname}${reqd} (${f.fieldtype})`,
             });
         }
         // Add child table fields
@@ -391,7 +382,7 @@ class RemoteImportPage {
             for (const cf of table_info.fields) {
                 field_options.push({
                     value: `${table_fn}.${cf.fieldname}`,
-                    label: `↳ ${table_info.label || table_fn} → ${cf.label || cf.fieldname} (${cf.fieldtype})`,
+                    label: `↳ ${table_info.label || table_fn} → ${cf.display_label || cf.label || cf.fieldname} (${cf.fieldtype})`,
                 });
             }
         }

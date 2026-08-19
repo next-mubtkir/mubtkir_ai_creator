@@ -295,6 +295,9 @@ def _mandatory_request_type_check(session_name, call):
     rtype = frappe.db.get_value("AI Session", session_name, "request_type")
     if rtype in allowed_types:
         return None
+    # "Transfer from Templates" و "Support Request" يحتاجون يوصلون لكل الأدوات بدون قيود
+    if rtype in ("Transfer from Templates", "Support Request"):
+        return None
     return (
         f"هذا الطلب يحتاج محادثة جديدة: أداة «{call['name']}» مخصصة لنوع الطلب "
         f"«{'، '.join(sorted(allowed_types))}»، وهذه المحادثة من نوع «{rtype or 'غير محدد'}». "

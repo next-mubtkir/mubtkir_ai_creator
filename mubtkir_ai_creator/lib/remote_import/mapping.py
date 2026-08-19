@@ -1,6 +1,7 @@
 """Mapping Engine — intelligent field mapping with save/load support."""
 
 import json
+import re
 from difflib import SequenceMatcher
 
 import frappe
@@ -8,25 +9,57 @@ import frappe
 from mubtkir_ai_creator.lib.remote_import.metadata import get_doctype_meta
 
 
+def _normalize_arabic(text):
+    """Normalize Arabic text for fuzzy matching.
+
+    Removes ال التعريف, normalizes ة→ه, أإآ→ا, strips tashkeel.
+    """
+    if not text:
+        return ""
+    t = text.lower().strip()
+    # Remove tashkeel (diacritics)
+    t = re.sub(r'[\u064B-\u065F\u0670]', '', t)
+    # Normalize hamza variants
+    t = re.sub(r'[أإآ]', 'ا', t)
+    # Normalize taa marbuta
+    t = t.replace('ة', 'ه')
+    # Remove ال التعريف at start
+    t = re.sub(r'^ال', '', t)
+    # Remove common prefixes/suffixes for matching
+    t = t.strip()
+    return t
+
+
 def auto_map(client_site, doctype, file_columns):
     """Auto-map file columns to remote DocType fields.
 
-    Uses exact match first, then fuzzy matching on fieldname and label.
+    Uses: exact match → translated label → normalized Arabic → fuzzy matching.
     Returns a dict: {file_column: remote_fieldname or None}
     """
     meta = get_doctype_meta(client_site, doctype)
 
-    # Build lookup: fieldname -> field, label_lower -> field
-    by_name = {}
-    by_label = {}
+    # Build lookups
+    by_name = {}       # fieldname → fieldname
+    by_label = {}      # label (lower) → fieldname
+    by_translated = {} # translated label (lower) → fieldname
+    by_normalized = {} # normalized arabic → fieldname
+
     for f in meta["fields"]:
         fn = f["fieldname"]
         by_name[fn.lower()] = fn
+
         label = (f.get("label") or "").lower().strip()
         if label:
             by_label[label] = fn
+            by_normalized[_normalize_arabic(label)] = fn
 
-    # Also include child table fields with table_fieldname prefix
+        # Use translated labels if available
+        tr = (f.get("translated_label") or "").lower().strip()
+        if tr:
+            by_translated[tr] = fn
+            by_normalized[_normalize_arabic(tr)] = fn
+
+    # Also include child table fields
     for table_fn, table_info in meta.get("child_tables", {}).items():
         for cf in table_info["fields"]:
             prefixed = f"{table_fn}.{cf['fieldname']}"
@@ -41,6 +74,7 @@ def auto_map(client_site, doctype, file_columns):
 
     for col in file_columns:
         col_lower = col.lower().strip()
+        col_norm = _normalize_arabic(col)
         matched = None
 
         # 1. Exact fieldname match
@@ -51,16 +85,31 @@ def auto_map(client_site, doctype, file_columns):
         if not matched and col_lower in by_label and by_label[col_lower] not in used:
             matched = by_label[col_lower]
 
-        # 3. Fuzzy match (threshold 0.7)
+        # 3. Translated label match
+        if not matched and col_lower in by_translated and by_translated[col_lower] not in used:
+            matched = by_translated[col_lower]
+
+        # 4. Normalized Arabic match (handles ال, ة, أ variations)
+        if not matched and col_norm and col_norm in by_normalized and by_normalized[col_norm] not in used:
+            matched = by_normalized[col_norm]
+
+        # 5. Fuzzy match (threshold 0.6 — lower for Arabic)
         if not matched:
             best_score = 0
             best_fn = None
-            all_candidates = list(by_name.items()) + list(by_label.items())
+            all_candidates = (
+                list(by_name.items()) + list(by_label.items()) +
+                list(by_translated.items()) + list(by_normalized.items())
+            )
             for key, fn in all_candidates:
                 if fn in used:
                     continue
-                score = SequenceMatcher(None, col_lower, key).ratio()
-                if score > best_score and score >= 0.7:
+                # Try both raw and normalized
+                score = max(
+                    SequenceMatcher(None, col_lower, key).ratio(),
+                    SequenceMatcher(None, col_norm, _normalize_arabic(key)).ratio() if col_norm else 0,
+                )
+                if score > best_score and score >= 0.6:
                     best_score = score
                     best_fn = fn
             if best_fn:

@@ -12,11 +12,6 @@ SYSTEM_PROMPT = """أنت خبير ERPNext آلي يعمل داخل منصة Mub
 قواعد إلزامية:
 1. لا تنفذ أي عملية كتابة قبل قراءة الوضع الحالي وفهمه (Understand → Inspect → Plan).
 2. استخدم الأدوات المتاحة فقط. لا تفترض وجود حقول أو DocTypes دون التحقق عبر inspect_doctype.
-2أزب. **قاعدة صارمة — لا استثناءات**: هذه المحادثة مقفلة على نوع طلب واحد فقط هو «{request_type}».
-   إن طلب المستخدم أي شي يخص نوعًا مختلفًا (مثلاً: تعديل Print Format بمحادثة Client Script، أو نقل قالب
-   بمحادثة Support Request) **ارفض فورًا من أول رد** — لا تسأله أسئلة توضيحية ولا تبدأ بالاستكشاف.
-   قل له مباشرة: "هذا الطلب يحتاج محادثة جديدة من نوع [النوع المناسب]. ابدأ جلسة جديدة واختر النوع الصحيح."
-   حتى لو كان الطلب مجرد سؤال عن شي مرتبط بنوع آخر (مثل "وش Print Formats الموجودة؟" بمحادثة Client Script).
 2أ. لتكرار مستند أو تخصيص (مثل Print Format) **داخل حساب نفس العميل**، استخدم duplicate_within_client دائمًا.
    استخدم copy_between_clients فقط عندما يكون المصدر والهدف عميلين مختلفين فعليًا. قبل استدعائها دائمًا
    نادِ list_client_sites أولًا (بحثًا باسم العميل الذي ذكره المستخدم) وخذ قيمة source_client من حقل
@@ -362,4 +357,3 @@ def _ollama(cfg, messages, tools, system):
         calls.append({"id": c.get("id"), "name": c.get("function", {}).get("name"), "input": args})
 
     return {"text": msg.get("content") or "", "tool_calls": calls, "raw": data}
-

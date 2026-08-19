@@ -259,12 +259,12 @@ class RemoteImportPage {
             <div class="ri-panel">
                 <div class="ri-panel-title">${__("رفع ملف البيانات")}</div>
                 <div id="ri-file-upload-area">
-                    <div class="ri-upload-zone" id="ri-drop-zone">
+                    <label class="ri-upload-zone" id="ri-drop-zone" for="ri-file-input" style="cursor:pointer">
                         <div style="font-size:36px; margin-bottom:8px">📁</div>
                         <div style="font-weight:600">${__("اضغط لاختيار ملف Excel أو CSV")}</div>
                         <div style="font-size:12px; color:var(--text-muted); margin-top:4px">.xlsx, .xls, .csv</div>
-                        <input type="file" id="ri-file-input" accept=".xlsx,.xls,.csv" style="display:none">
-                    </div>
+                    </label>
+                    <input type="file" id="ri-file-input" accept=".xlsx,.xls,.csv" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden">
                 </div>
                 <div id="ri-file-info" style="margin-top:12px"></div>
                 <div style="margin-top:16px; text-align:center">
@@ -278,11 +278,6 @@ class RemoteImportPage {
                 <button class="btn btn-primary btn-sm" id="ri-btn-next-2" disabled>${__("التالي ←")}</button>
             </div>
         `);
-
-        // Click to upload
-        container.find("#ri-drop-zone").on("click", () => {
-            container.find("#ri-file-input").trigger("click");
-        });
 
         // File selected
         container.find("#ri-file-input").on("change", (e) => {

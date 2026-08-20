@@ -1,10 +1,11 @@
 {
  "actions": [],
- "autoname": "format:IMP-{YY}-{MM}-{####}",
+ "autoname": "naming_series:IMP-.YY.-.MM.-.####",
  "creation": "2026-08-18 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "client_site",
   "remote_doctype",
   "import_type",
@@ -52,6 +53,17 @@
   "is_resumable"
  ],
  "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "IMP-.YY.-.MM.-.####",
+   "default": "IMP-.YY.-.MM.-.####",
+   "hidden": 1,
+   "no_copy": 1,
+   "print_hide": 1,
+   "reqd": 1
+  },
   {
    "fieldname": "client_site",
    "fieldtype": "Link",
@@ -351,7 +363,7 @@
  "modified_by": "Administrator",
  "module": "AI Creator",
  "name": "AI Remote Import",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {

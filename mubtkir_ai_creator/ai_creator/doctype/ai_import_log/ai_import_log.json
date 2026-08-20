@@ -1,10 +1,11 @@
 {
  "actions": [],
- "autoname": "format:ILOG-{YY}-{MM}-{####}",
+ "autoname": "naming_series:ILOG-.YY.-.MM.-.####",
  "creation": "2026-08-18 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "remote_import",
   "client_site",
   "import_user",
@@ -31,6 +32,17 @@
   "errors"
  ],
  "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "ILOG-.YY.-.MM.-.####",
+   "default": "ILOG-.YY.-.MM.-.####",
+   "hidden": 1,
+   "no_copy": 1,
+   "print_hide": 1,
+   "reqd": 1
+  },
   {
    "fieldname": "remote_import",
    "fieldtype": "Link",
@@ -176,7 +188,7 @@
  "modified_by": "Administrator",
  "module": "AI Creator",
  "name": "AI Import Log",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {

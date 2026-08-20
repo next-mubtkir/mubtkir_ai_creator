@@ -292,7 +292,7 @@ def _apply_to_target(dep, payload, client):
         exists = False
 
     if exists and not dep.overwrite_existing:
-        return "Skipped", f"«{target_name}» موجود مسبقًا ولم يُفعّل الاستبدال", None
+        return "Skipped", f"'{target_name}' already exists and overwrite is disabled", None
 
     data = dict(payload)
     if dep.deployment_type == "Custom Field" and dep.target_doctype:
@@ -300,9 +300,16 @@ def _apply_to_target(dep, payload, client):
 
     if exists:
         out = client.update_doc(target_dt, target_name, data)
-        return "Success", f"تم استبدال «{target_name}»", out
+        return "Success", f"Updated '{target_name}'", out
 
     data.setdefault("name", target_name) if dep.deployment_type == "Print Format" or dep.deployment_type in PROMPT_NAMED_TYPES else None
-    out = client.create_doc(target_dt, data)
+    try:
+        out = client.create_doc(target_dt, data)
+    except Exception as e:
+        # Fallback: if DuplicateEntry and overwrite is enabled, try update instead
+        if "DuplicateEntry" in str(e) and dep.overwrite_existing:
+            out = client.update_doc(target_dt, target_name, data)
+            return "Success", f"Updated '{target_name}' (was not detected initially)", out
+        raise
     created = (out or {}).get("data", {}).get("name")
-    return "Success", f"تم إنشاء «{created or target_name}»", out
+    return "Success", f"Created '{created or target_name}'", out

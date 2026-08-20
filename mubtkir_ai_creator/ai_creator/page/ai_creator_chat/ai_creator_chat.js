@@ -323,6 +323,7 @@ class Chat{
 			$a.append($('<button>Copy</button>').on('click',()=>{frappe.utils.copy_to_clipboard(this.dec(text));frappe.show_alert({message:'Copied',indicator:'green'},2);}));
 			$a.append($('<button>Reply</button>').on('click',()=>this.setReply(text)));
 			$a.append($('<button>Pin</button>').on('click',()=>this.setPin(text)));
+			if(role==='b'&&!this.viewOnly){$a.append($('<button style="background:var(--primary);color:#fff">Execute</button>').on('click',()=>{this.$input.val('Execute');this.send();}));}
 			$b.append($a);
 		}
 		this.$msgs.append($b);this.$msgs.scrollTop(this.$msgs[0].scrollHeight);

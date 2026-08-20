@@ -7,7 +7,7 @@ import requests
 
 
 class FrappeSiteClient:
-    """عميل REST لموقع ERPNext واحد. تُنشأ نسخة منه لكل عملية ومقفلة على site واحد."""
+    """عميل REST لموقع ERPNext واحد. تُنشأ نسخة fromه لكل عملية ومقفلة على site واحد."""
 
     def __init__(self, client_site_name):
         doc = frappe.get_doc("AI Client Site", client_site_name)
@@ -45,7 +45,7 @@ class FrappeSiteClient:
 
         if resp.status_code >= 400:
             raise RuntimeError(
-                f"استجابة {resp.status_code} من {self.site_url}{path}: {resp.text[:500]}"
+                f"Response {resp.status_code} from {self.site_url}{path}: {resp.text[:500]}"
             )
 
         try:
@@ -70,7 +70,7 @@ class FrappeSiteClient:
     def get_list(self, doctype, fields=None, filters=None, limit=20, order_by=None):
         # الترتيب الافتراضي: الأحدث أولًا (creation desc) — لا يجوز ترك الترتيب
         # لتقدير النموذج، لأن API يرجع تصاعديًا افتراضيًا (الأقدم أولًا) وهو
-        # عكس ما يفهمه أي مستخدم من طلب "آخر" أو "أحدث" المستندات
+        # عكس ما يفهمه أي مستخدم from طلب "آخر" أو "أحدث" المستندات
         params = {"limit_page_length": limit, "order_by": order_by or "creation desc"}
         if fields:
             params["fields"] = json.dumps(fields)

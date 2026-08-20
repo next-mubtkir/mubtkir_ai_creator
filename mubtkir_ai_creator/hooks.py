@@ -22,5 +22,5 @@ scheduler_events = {
     }
 }
 
-app_include_js = []
+app_include_js = ["mubtkir_ai_creator/public/js/json_renderer.js"]
 app_include_css = []

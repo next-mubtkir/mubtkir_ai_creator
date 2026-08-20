@@ -46,7 +46,7 @@ def needs_approval(risk):
 # ---------------- الحلقة الرئيسية ----------------
 
 def run_turn(session_name, user_message, file_urls=None):
-    """دورة محادثة واحدة. تنفذ أدوات القراءة تلقائيًا، وتتوقف عند أول أداة تحتاج موافقة.
+    """دورة محادثة واحدة. تنفذ أدوات القراءة تلقائيًا، وتتوقف عند أول Tool تحتاج موافقة.
 
     file_urls: مرفقات اختيارية (Excel/CSV/صور) تُحوَّل إلى كتل محتوى مع الرسالة.
     """
@@ -299,9 +299,9 @@ def _mandatory_request_type_check(session_name, call):
     if rtype in ("Transfer from Templates", "Support Request"):
         return None
     return (
-        f"هذا الطلب يحتاج محادثة جديدة: أداة «{call['name']}» مخصصة لنوع الطلب "
-        f"«{'، '.join(sorted(allowed_types))}»، وهذه المحادثة من نوع «{rtype or 'غير محدد'}». "
-        f"اطلب من المستخدم بدء محادثة جديدة بنوع الطلب المناسب بدل تنفيذ هذا هنا."
+        f"This request requires a new session: Tool «{call['name']}» is restricted to request type "
+        f"«{'، '.join(sorted(allowed_types))}»، and this session is of type «{rtype or 'Unspecified'}». "
+        f"Ask the user to start a new session with the appropriate request type."
     )
 
 
@@ -475,7 +475,7 @@ def execute_task(task_name):
     task.db_set("verification_result", _dump(verification))
     task.db_set("status", "Failed" if failed else "Completed")
     if failed:
-        task.db_set("error_message", (error_text or "فشل غير محدد")[:1000])
+        task.db_set("error_message", (error_text or "Unspecified failure")[:1000])
 
     frappe.db.commit()
     return {

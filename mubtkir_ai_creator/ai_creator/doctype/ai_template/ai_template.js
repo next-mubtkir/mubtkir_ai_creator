@@ -3,7 +3,7 @@ frappe.ui.form.on('AI Template', {
 		if (frm.is_new()) return;
 
 		if (frm.doc.deployable && ['Print Format', 'Custom Field'].includes(frm.doc.artifact_type)) {
-			frm.add_custom_button(__('إنشاء نشر جماعي من هذا القالب'), function () {
+			frm.add_custom_button(__('Create Bulk Deployment from this Template'), function () {
 				frappe.call({
 					method:
 						'mubtkir_ai_creator.ai_creator.doctype.ai_template.ai_template.create_deployment_from_template',

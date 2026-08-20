@@ -1,6 +1,6 @@
 {
  "actions": [],
- "autoname": "AI-IMP-.#####",
+ "autoname": "format:IMP-{YY}-{MM}-{####}",
  "creation": "2026-08-18 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -11,6 +11,8 @@
   "column_break_main",
   "status",
   "started_by",
+  "session",
+  "task",
   "started_on",
   "finished_on",
   "source_section",
@@ -96,6 +98,20 @@
    "fieldtype": "Link",
    "label": "Started By",
    "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "session",
+   "fieldtype": "Link",
+   "label": "Session",
+   "options": "AI Session",
+   "read_only": 1
+  },
+  {
+   "fieldname": "task",
+   "fieldtype": "Link",
+   "label": "Task",
+   "options": "AI Task",
    "read_only": 1
   },
   {
@@ -335,7 +351,7 @@
  "modified_by": "Administrator",
  "module": "AI Creator",
  "name": "AI Remote Import",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

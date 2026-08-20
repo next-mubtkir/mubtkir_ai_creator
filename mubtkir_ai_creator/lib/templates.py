@@ -70,7 +70,7 @@ def list_artifact_types(client_site):
 def capture(client_site, artifact_type, source_name, title=None, notes=None):
     """التقاط عنصر واحد وحفظه كـ AI Template بنسخة مؤرّخة."""
     if artifact_type not in ARTIFACTS:
-        frappe.throw(f"نوع غير مدعوم: {artifact_type}")
+        frappe.throw(f"Unsupported type: {artifact_type}")
 
     client = FrappeSiteClient(client_site)
     doctype = ARTIFACTS[artifact_type]["doctype"]

@@ -2,6 +2,3 @@
 
 [post_model_sync]
 mubtkir_ai_creator.patches.remove_workspace_description
-
-mubtkir_ai_creator.patches.reload_workspace
-mubtkir_ai_creator.patches.reload_workspace_v2

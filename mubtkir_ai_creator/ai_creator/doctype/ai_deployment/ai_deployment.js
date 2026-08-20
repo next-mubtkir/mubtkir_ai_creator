@@ -3,13 +3,20 @@ frappe.ui.form.on('AI Deployment', {
 		setup_doctype_suggestions(frm);
 		if (frm.is_new()) return;
 
+		// Render JSON fields as readable UI
+		if (window.mubtkir && mubtkir.renderJsonField) {
+			mubtkir.renderJsonField(frm, 'resolved_payload', { type: 'key_value' });
+			mubtkir.renderJsonField(frm, 'manual_payload', { type: 'key_value' });
+			mubtkir.renderJsonField(frm, 'preview_summary', { type: 'key_value' });
+		}
+
 		var st = frm.doc.status;
 
-		// ===== استعراض المتاح =====
-		if (['Draft', 'Previewed', 'Pending Approval'].includes(st) && frm.doc.source_mode === 'نسخ من عميل') {
-			frm.add_custom_button(__('استعراض المتاح'), function () {
+		// ===== Browse Available =====
+		if (['Draft', 'Previewed', 'Pending Approval'].includes(st) && frm.doc.source_mode === 'Copy from Client') {
+			frm.add_custom_button(__('Browse Available'), function () {
 				if (!frm.doc.source_client || !frm.doc.deployment_type) {
-					frappe.msgprint(__('حدد العميل المصدر ونوع العملية أولًا'));
+					frappe.msgprint('Select source client and deployment type first');
 					return;
 				}
 				var d = new frappe.ui.Dialog({
@@ -23,11 +30,11 @@ frappe.ui.form.on('AI Deployment', {
 					callback: function (r) {
 						var rows = r.message || [];
 						if (!rows.length) {
-							d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا النوع</div>');
+							d.fields_dict.results.$wrapper.html('<div >لا توجد عناصر من هذا النوع</div>');
 							d.show();
 							return;
 						}
-						var $list = $('<div dir="rtl" style="max-height:320px;overflow:auto;"></div>');
+						var $list = $('<div  style="max-height:320px;overflow:auto;"></div>');
 						rows.forEach(function (row) {
 							var $item = $('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);"><span>' + frappe.utils.escape_html(row.name) + '</span><button class="btn btn-xs btn-default">تحديد</button></div>');
 							$item.find('button').on('click', function () {
@@ -43,9 +50,9 @@ frappe.ui.form.on('AI Deployment', {
 			});
 		}
 
-		// ===== تحديد كل العملاء =====
+		// ===== Select All Clients =====
 		if (['Draft', 'Previewed', 'Pending Approval'].includes(st)) {
-			frm.add_custom_button(__('تحديد كل العملاء'), function () {
+			frm.add_custom_button(__('Select All Clients'), function () {
 				frappe.call({
 					method: 'frappe.client.get_list',
 					args: { doctype: 'AI Client Site', filters: { is_active: 1 }, fields: ['name'], limit_page_length: 500 },
@@ -61,12 +68,12 @@ frappe.ui.form.on('AI Deployment', {
 						frappe.show_alert({ message: __('تمت إضافة كل العملاء المفعّلين'), indicator: 'green' }, 4);
 					},
 				});
-			}, __('الأهداف'));
+			}, __('Targets'));
 		}
 
-		// ===== معاينة التوافق =====
+		// ===== Check Compatibility =====
 		if (['Draft', 'Previewed', 'Pending Approval'].includes(st)) {
-			frm.add_custom_button(__('معاينة التوافق'), function () {
+			frm.add_custom_button(__('Check Compatibility'), function () {
 				frappe.dom.freeze(__('جارٍ فحص كل عميل...'));
 				frappe.call({
 					method: 'mubtkir_ai_creator.ai_creator.doctype.ai_deployment.ai_deployment.run_preview',
@@ -77,7 +84,7 @@ frappe.ui.form.on('AI Deployment', {
 						frappe.msgprint({
 							title: __('نتيجة المعاينة'),
 							indicator: 'blue',
-							message: '<div dir="rtl"><b>' + frappe.utils.escape_html((r.message || {}).summary || '') + '</b><br><br>راجع جدول الأهداف لتفاصيل كل عميل قبل الاعتماد.</div>',
+							message: '<div ><b>' + frappe.utils.escape_html((r.message || {}).summary || '') + '</b><br><br>Review Targets table for details before approval.</div>',
 						});
 					},
 					error: function () { frappe.dom.unfreeze(); },
@@ -85,18 +92,18 @@ frappe.ui.form.on('AI Deployment', {
 			}).addClass('btn-primary');
 		}
 
-		// ===== اعتماد وتنفيذ =====
+		// ===== Approve & Execute =====
 		if (st === 'Pending Approval') {
-			frm.add_custom_button(__('اعتماد وتنفيذ'), function () {
+			frm.add_custom_button(__('Approve & Execute'), function () {
 				var bad = 0, warn = 0;
 				(frm.doc.targets || []).forEach(function (t) {
 					if (t.compatibility === 'Incompatible') bad++;
 					if (t.compatibility === 'Warning') warn++;
 				});
 				frappe.confirm(
-					'<div dir="rtl">سيتم التطبيق على <b>' + (frm.doc.targets || []).length + '</b> عميل.<br>غير متوافق: <b>' + bad + '</b> — تحذير: <b>' + warn + '</b><br><br>العملاء غير المتوافقين سيُسجَّل فشلهم دون إيقاف الباقي.<br><b>هل تريد المتابعة؟</b></div>',
+					'Will deploy to <b>' + (frm.doc.targets || []).length + '</b> clients.<br>Incompatible: <b>' + bad + '</b> — Warnings: <b>' + warn + '</b><br><br>Incompatible clients will be marked Failed without stopping others.<br><b>Continue?</b>',
 					function () {
-						frappe.dom.freeze(__('جارٍ التنفيذ على العملاء...'));
+						frappe.dom.freeze('Deploying to clients...');
 						frappe.call({
 							method: 'mubtkir_ai_creator.ai_creator.doctype.ai_deployment.ai_deployment.approve_and_execute',
 							args: { name: frm.doc.name },
@@ -105,9 +112,9 @@ frappe.ui.form.on('AI Deployment', {
 								frm.reload_doc();
 								var o = r.message || {};
 								frappe.msgprint({
-									title: __('انتهى التنفيذ'),
+									title: 'Deployment Complete',
 									indicator: o.failed ? 'orange' : 'green',
-									message: '<div dir="rtl">نجح: <b>' + (o.success||0) + '</b> — فشل: <b>' + (o.failed||0) + '</b> — تُخطّي: <b>' + (o.skipped||0) + '</b></div>',
+									message: 'Succeeded: <b>' + (o.success||0) + '</b> — Failed: <b>' + (o.failed||0) + '</b> — Skipped: <b>' + (o.skipped||0) + '</b>',
 								});
 							},
 							error: function () { frappe.dom.unfreeze(); },
@@ -117,14 +124,14 @@ frappe.ui.form.on('AI Deployment', {
 			}).addClass('btn-danger');
 		}
 
-		// ===== نسخ تقرير النتائج =====
+		// ===== Copy Results Report =====
 		if (['Completed', 'Partially Failed', 'Failed'].includes(st)) {
-			frm.add_custom_button(__('نسخ تقرير النتائج'), function () {
+			frm.add_custom_button(__('Copy Results Report'), function () {
 				var lines = [
 					'عملية النشر: ' + frm.doc.name + ' — ' + (frm.doc.title || ''),
 					'النوع: ' + frm.doc.deployment_type,
 					'الحالة: ' + frm.doc.status,
-					'نجح: ' + frm.doc.success_count + ' | فشل: ' + frm.doc.failed_count + ' | تُخطّي: ' + frm.doc.skipped_count,
+					'Succeeded: ' + frm.doc.success_count + ' | Failed: ' + frm.doc.failed_count + ' | تُخطّي: ' + frm.doc.skipped_count,
 					'', '--- تفاصيل كل عميل ---',
 				];
 				(frm.doc.targets || []).forEach(function (t) {

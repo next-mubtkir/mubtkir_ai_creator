@@ -1022,7 +1022,72 @@ def _list_custom_blocks(client):
     return list_custom_blocks(client)
 
 
-# ---------------- مساعدات ----------------
+# ---------------- Remote Import Tools ----------------
+
+@tool(
+    "start_remote_import",
+    "high",
+    "Start a remote data import — uploads file data to a client's ERPNext via API. Returns the import document name for tracking.",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string", "description": "Target DocType on the remote site (e.g. Asset, Item, Journal Entry)"},
+            "import_type": {"type": "string", "enum": ["Insert", "Update", "Insert if Missing", "Update if Exists"], "default": "Insert"},
+            "file_url": {"type": "string", "description": "URL of the uploaded file (from attachment)"},
+            "batch_size": {"type": "integer", "default": 200},
+        },
+        "required": ["doctype", "file_url"],
+    },
+)
+def _start_remote_import(client, doctype, file_url, import_type="Insert", batch_size=200):
+    """Create and start a remote import from the chat."""
+    import frappe as _frappe
+
+    # Get the client site name from the client object
+    client_site = client.site_name if hasattr(client, "site_name") else client.client_site
+
+    doc = _frappe.get_doc({
+        "doctype": "AI Remote Import",
+        "client_site": client_site,
+        "remote_doctype": doctype,
+        "import_type": import_type,
+        "source_file": file_url,
+        "source_file_name": file_url.split("/")[-1] if file_url else "",
+        "batch_size": batch_size,
+        "skip_failed_rows": 1,
+        "ignore_empty_values": 1,
+        "run_as_background_job": 1,
+    })
+    doc.insert(ignore_permissions=True)
+    _frappe.db.commit()
+
+    return {
+        "import_name": doc.name,
+        "status": "Created",
+        "message": f"Import {doc.name} created for {doctype}. Open /app/remote-import to configure mapping and start.",
+        "url": f"/app/ai-remote-import/{doc.name}",
+    }
+
+
+@tool(
+    "get_import_status",
+    "low",
+    "Check the status of a running or completed remote import.",
+    {
+        "type": "object",
+        "properties": {
+            "import_name": {"type": "string", "description": "The import document name (e.g. IMP-26-08-0001)"},
+        },
+        "required": ["import_name"],
+    },
+)
+def _get_import_status(client, import_name):
+    """Get the status of a remote import."""
+    from mubtkir_ai_creator.lib.remote_import.queue import get_import_status
+    return get_import_status(import_name)
+
+
+# ---------------- Helpers ----------------
 
 def get_tool_definitions():
     """إرجاع تعريفات الأدوات بصيغة Tool Calling."""

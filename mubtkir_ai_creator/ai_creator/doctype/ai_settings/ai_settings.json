@@ -30,7 +30,15 @@
   "attachments_section",
   "max_rows_per_sheet",
   "column_break_5",
-  "max_text_chars"
+  "max_text_chars",
+  "tab_import",
+  "import_section",
+  "default_batch_size",
+  "max_import_rows",
+  "column_break_import",
+  "import_timeout",
+  "require_approval_large_import",
+  "large_import_threshold"
  ],
  "fields": [
   {
@@ -184,6 +192,55 @@
    "fieldtype": "Int",
    "label": "Max File Content Characters",
    "default": "30000"
+  },
+  {
+   "fieldname": "tab_import",
+   "fieldtype": "Tab Break",
+   "label": "Import"
+  },
+  {
+   "fieldname": "import_section",
+   "fieldtype": "Section Break",
+   "label": "Remote Import Settings"
+  },
+  {
+   "fieldname": "default_batch_size",
+   "fieldtype": "Int",
+   "label": "Default Batch Size",
+   "default": "200",
+   "description": "Default number of rows per batch in Remote Import"
+  },
+  {
+   "fieldname": "max_import_rows",
+   "fieldtype": "Int",
+   "label": "Max Rows per Import",
+   "default": "100000",
+   "description": "Maximum rows allowed in a single import. Set 0 for unlimited"
+  },
+  {
+   "fieldname": "column_break_import",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "import_timeout",
+   "fieldtype": "Int",
+   "label": "Import Timeout (seconds)",
+   "default": "7200",
+   "description": "Maximum time for a background import job"
+  },
+  {
+   "fieldname": "require_approval_large_import",
+   "fieldtype": "Check",
+   "label": "Require Approval for Large Imports",
+   "default": "1",
+   "description": "Create an AI Task for approval when import exceeds threshold"
+  },
+  {
+   "fieldname": "large_import_threshold",
+   "fieldtype": "Int",
+   "label": "Large Import Threshold (rows)",
+   "default": "5000",
+   "description": "Row count above which import requires approval"
   }
  ],
  "issingle": 1,

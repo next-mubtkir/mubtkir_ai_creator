@@ -50,10 +50,18 @@ def run_import(import_name, start_row=0):
     doc = frappe.get_doc("AI Remote Import", import_name)
     client = FrappeSiteClient(doc.client_site)
 
+    # Load import settings from AI Settings
+    settings = frappe.get_single("AI Settings")
+    max_rows = getattr(settings, "max_import_rows", 0) or 0
+
     # Parse the file
     file_data = parse_file(file_url=doc.source_file)
     headers = file_data["headers"]
     rows = file_data["rows"]
+
+    # Validate row count against settings
+    if max_rows and len(rows) > max_rows:
+        frappe.throw(f"Import has {len(rows)} rows which exceeds the maximum of {max_rows}. Adjust the limit in AI Settings.")
 
     # Load mapping
     mapping = {}
@@ -70,8 +78,8 @@ def run_import(import_name, start_row=0):
     doc.db_set("total_rows", len(rows))
     doc.start_import()
 
-    # Calculate batches
-    batch_size = doc.batch_size or 200
+    # Use batch size from settings if not set on the document
+    batch_size = doc.batch_size or getattr(settings, "default_batch_size", 0) or 200
     total_batches = (len(rows) + batch_size - 1) // batch_size
     doc.db_set("total_batches", total_batches)
 
@@ -365,7 +373,44 @@ def _create_import_log(doc, imported, failed, skipped, errors):
     })
     log.insert(ignore_permissions=True)
     frappe.db.commit()
+
+    # Also log in AI Action Log for unified tracking
+    _log_action(doc, imported, failed, skipped, duration_secs)
+
     return log.name
+
+
+def _log_action(doc, imported, failed, skipped, duration_secs):
+    """Create an AI Action Log entry for the import operation."""
+    try:
+        action_log = frappe.get_doc({
+            "doctype": "AI Action Log",
+            "client_site": doc.client_site,
+            "session": doc.session or None,
+            "task": doc.task or None,
+            "tool_name": "remote_import",
+            "risk_level": "Medium",
+            "is_success": 1 if doc.status == "Success" else 0,
+            "duration_ms": int(duration_secs * 1000),
+            "tool_input": json.dumps({
+                "import": doc.name,
+                "doctype": doc.remote_doctype,
+                "import_type": doc.import_type,
+                "total_rows": doc.total_rows,
+                "file": doc.source_file_name,
+            }, ensure_ascii=False),
+            "tool_output": json.dumps({
+                "status": doc.status,
+                "imported": imported,
+                "failed": failed,
+                "skipped": skipped,
+            }, ensure_ascii=False),
+            "error_message": doc.error_log if failed else "",
+        })
+        action_log.insert(ignore_permissions=True)
+        frappe.db.commit()
+    except Exception:
+        pass  # Action log is best-effort
 
 
 def _process_attachments(data, client_site, doctype, docname):

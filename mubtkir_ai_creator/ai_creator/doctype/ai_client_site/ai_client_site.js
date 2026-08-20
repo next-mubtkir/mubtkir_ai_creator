@@ -2,10 +2,10 @@ frappe.ui.form.on('AI Client Site', {
 	refresh: function (frm) {
 		if (frm.is_new()) return;
 
-		// ===== 1. فحص الاتصال =====
-		frm.add_custom_button(__('فحص الاتصال'), function () {
+		// ===== 1. Test Connection =====
+		frm.add_custom_button(__('Test Connection'), function () {
 			frm.dashboard.clear_headline();
-			frappe.dom.freeze(__('جارٍ فحص الاتصال...'));
+			frappe.dom.freeze(__('جارٍ Test Connection...'));
 			frappe.call({
 				method: 'mubtkir_ai_creator.ai_creator.doctype.ai_client_site.ai_client_site.test_connection',
 				args: { name: frm.doc.name },
@@ -17,7 +17,7 @@ frappe.ui.form.on('AI Client Site', {
 						`<span class="indicator ${m.ok ? 'green' : 'red'}">${
 							m.ok
 								? 'متصل — Frappe ' + (m.frappe_version || '') + ' / ERPNext ' + (m.erpnext_version || '')
-								: 'فشل — ' + (m.error || '')
+								: 'failed — ' + (m.error || '')
 						}</span>`
 					);
 				},
@@ -27,22 +27,22 @@ frappe.ui.form.on('AI Client Site', {
 			});
 		});
 
-		// ===== 2. التقاط تخصيص واحد =====
-		frm.add_custom_button(__('التقاط تخصيص'), function () {
+		// ===== 2. Capture Customization واحد =====
+		frm.add_custom_button(__('Capture Customization'), function () {
 			const d = new frappe.ui.Dialog({
-				title: __('التقاط تخصيص من هذا العميل'),
+				title: __('Capture Customization from this Client'),
 				fields: [
 					{
 						fieldname: 'artifact_type',
-						label: __('النوع'),
+						label: __('Type'),
 						fieldtype: 'Select',
 						options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier',
 						reqd: 1,
 						default: 'Print Format',
 					},
-					{ fieldname: 'target_doctype', label: __('حصر بـ DocType (اختياري)'), fieldtype: 'Data' },
-					{ fieldname: 'load', label: __('استعراض المتاح'), fieldtype: 'Button' },
-					{ fieldname: 'select_all', label: __('تحديد الكل'), fieldtype: 'Button', hidden: 1 },
+					{ fieldname: 'target_doctype', label: __('Filter by DocType (optional)'), fieldtype: 'Data' },
+					{ fieldname: 'load', label: __('Browse Available'), fieldtype: 'Button' },
+					{ fieldname: 'select_all', label: __('Select All'), fieldtype: 'Button', hidden: 1 },
 					{ fieldname: 'results', fieldtype: 'HTML' },
 				],
 			});
@@ -65,7 +65,7 @@ frappe.ui.form.on('AI Client Site', {
 			function renderResults(rows) {
 				lastRows = rows;
 				if (!rows.length) {
-					d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا النوع</div>');
+					d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا Type</div>');
 					d.set_df_property('select_all', 'hidden', 1);
 					return;
 				}
@@ -75,7 +75,7 @@ frappe.ui.form.on('AI Client Site', {
 					const $item = $(`
 						<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);">
 							<span>${frappe.utils.escape_html(row.name)}</span>
-							<button class="btn btn-xs btn-default">التقاط</button>
+							<button class="btn btn-xs btn-default">Capture</button>
 						</div>
 					`);
 					$item.find('button').on('click', function () {
@@ -83,7 +83,7 @@ frappe.ui.form.on('AI Client Site', {
 						$btn.prop('disabled', true);
 						captureOne(row, function (err, m) {
 							if (err) { $btn.prop('disabled', false); return; }
-							$btn.replaceWith('<span class="text-muted">تم — النسخة ' + (m.version || '') + '</span>');
+							$btn.replaceWith('<span class="text-muted">Done — version ' + (m.version || '') + '</span>');
 						});
 					});
 					$list.append($item);
@@ -112,14 +112,14 @@ frappe.ui.form.on('AI Client Site', {
 			d.fields_dict.select_all.$input.off('click').on('click', function () {
 				if (!lastRows.length) return;
 				frappe.confirm(
-					__('التقاط كل العناصر المعروضة ({0}) كقوالب؟', [lastRows.length]),
+					__('Capture all displayed items ({0}) as templates?', [lastRows.length]),
 					function () {
 						let done = 0, failed = 0;
-						frappe.dom.freeze(__('جارٍ الالتقاط...'));
+						frappe.dom.freeze(__('Capturing...'));
 						const next = (i) => {
 							if (i >= lastRows.length) {
 								frappe.dom.unfreeze();
-								frappe.show_alert({ message: __('اكتمل — نجح {0}، فشل {1}', [done, failed]), indicator: failed ? 'orange' : 'green' }, 6);
+								frappe.show_alert({ message: __('Done — succeeded {0}، failed {1}', [done, failed]), indicator: failed ? 'orange' : 'green' }, 6);
 								return;
 							}
 							captureOne(lastRows[i], function (err) { if (err) failed++; else done++; next(i + 1); });

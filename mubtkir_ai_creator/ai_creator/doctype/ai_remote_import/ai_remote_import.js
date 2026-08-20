@@ -66,9 +66,10 @@ frappe.ui.form.on("AI Remote Import", {
         const colors = { Pending:"orange", Queued:"blue", Running:"blue", Success:"green", "Partial Success":"orange", Failed:"red", Cancelled:"grey" };
         frm.page.set_indicator(status, colors[status] || "grey");
 
-        // Render formatted error log
-        if (frm.doc.error_log && frm.doc.error_log !== "[]") {
-            _render_error_table(frm);
+        // Render JSON fields as readable UI
+        if (window.mubtkir && mubtkir.renderJsonField) {
+            mubtkir.renderJsonField(frm, 'error_log', { type: 'error_list' });
+            mubtkir.renderJsonField(frm, 'column_mapping', { type: 'mapping' });
         }
     },
 
@@ -78,53 +79,3 @@ frappe.ui.form.on("AI Remote Import", {
         }
     },
 });
-
-function _render_error_table(frm) {
-    try {
-        const errors = JSON.parse(frm.doc.error_log);
-        if (!errors.length) return;
-
-        const rows = errors.slice(0, 100).map(e => {
-            const msg = _extract_msg(e.error);
-            return `<tr style="border-bottom:1px solid var(--border-color)">
-                <td style="padding:8px 12px;color:var(--red-500);font-weight:600;white-space:nowrap">Row ${e.row}</td>
-                <td style="padding:8px 12px;font-size:13px">${frappe.utils.escape_html(msg)}</td>
-            </tr>`;
-        }).join("");
-
-        const html = `
-            <div style="margin-top:16px">
-                <h6 style="margin-bottom:8px">Error Details (${errors.length} errors)</h6>
-                <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border-color);border-radius:var(--border-radius-lg)">
-                    <table style="width:100%;border-collapse:collapse">
-                        <thead><tr style="background:var(--bg-light-gray)">
-                            <th style="padding:8px 12px;text-align:left">Row</th>
-                            <th style="padding:8px 12px;text-align:left">Error</th>
-                        </tr></thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                </div>
-            </div>`;
-
-        // Replace the raw JSON field with formatted table
-        $(frm.fields_dict.error_log.wrapper).find(".like-disabled-input, .control-value").hide();
-        const existing = $(frm.fields_dict.error_log.wrapper).find(".ri-error-table-rendered");
-        if (existing.length) existing.remove();
-        $(frm.fields_dict.error_log.wrapper).append(`<div class="ri-error-table-rendered">${html}</div>`);
-    } catch (ex) { /* show raw if parse fails */ }
-}
-
-function _extract_msg(raw) {
-    if (!raw) return "Unknown error";
-    try {
-        const m1 = raw.match(/"message":\s*"([^"]+)"/);
-        if (m1) return m1[1];
-        const m2 = raw.match(/ValidationError:\s*(.+?)(?:\\n|",|$)/);
-        if (m2) return m2[1].trim();
-        const m3 = raw.match(/OperationalError.*?:\s*(.+?)(?:\\n|$)/);
-        if (m3) return m3[1].trim();
-        const m4 = raw.match(/"exception":\s*"[^:]+:\s*(.+?)(?:\\n|",|$)/);
-        if (m4) return m4[1].trim();
-    } catch(e) {}
-    return raw.replace(/https?:\/\/[^\s,}]+/g, "").replace(/\\n/g, " ").replace(/\\"/g, '"').substring(0, 200);
-}

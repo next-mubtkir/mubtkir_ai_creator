@@ -10,4 +10,4 @@ class AIImportMapping(Document):
             try:
                 json.loads(self.mapping_data)
             except (json.JSONDecodeError, TypeError):
-                frappe.throw("بيانات الخريطة يجب أن تكون JSON صالح")
+                frappe.throw("Mapping data must be valid JSON")

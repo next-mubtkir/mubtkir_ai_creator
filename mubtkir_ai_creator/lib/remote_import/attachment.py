@@ -24,12 +24,12 @@ def upload_attachment(client_site, doctype, docname, file_url=None, file_path=No
         if not os.path.exists(local_path):
             local_path = frappe.get_site_path(file_url.lstrip("/"))
         if not os.path.exists(local_path):
-            raise FileNotFoundError(f"الملف غير موجود: {file_url}")
+            raise FileNotFoundError(f"File not found: {file_url}")
         file_path = local_path
         filename = filename or os.path.basename(file_url)
 
     if not file_path or not os.path.exists(file_path):
-        raise FileNotFoundError(f"الملف غير موجود: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}")
 
     filename = filename or os.path.basename(file_path)
 
@@ -55,7 +55,7 @@ def upload_attachment(client_site, doctype, docname, file_url=None, file_path=No
     resp = requests.post(url, headers=headers, files=files, data=data, timeout=timeout)
 
     if resp.status_code >= 400:
-        raise RuntimeError(f"فشل رفع المرفق: {resp.status_code} — {resp.text[:300]}")
+        raise RuntimeError(f"Attachment upload failed: {resp.status_code} — {resp.text[:300]}")
 
     result = resp.json()
     return result.get("message", {})
@@ -81,7 +81,7 @@ def process_attachment_column(client_site, doctype, docname, attachment_value):
             result = upload_attachment(client_site, doctype, docname, file_url=value)
             return result.get("file_url", value)
         except Exception as e:
-            frappe.log_error(f"فشل رفع المرفق {value}: {e}", "AI Import Attachment")
+            frappe.log_error(f"Attachment upload failed {value}: {e}", "AI Import Attachment")
             return value
 
     # If it's an absolute path
@@ -90,7 +90,7 @@ def process_attachment_column(client_site, doctype, docname, attachment_value):
             result = upload_attachment(client_site, doctype, docname, file_path=value)
             return result.get("file_url", value)
         except Exception as e:
-            frappe.log_error(f"فشل رفع المرفق {value}: {e}", "AI Import Attachment")
+            frappe.log_error(f"Attachment upload failed {value}: {e}", "AI Import Attachment")
             return value
 
     return value

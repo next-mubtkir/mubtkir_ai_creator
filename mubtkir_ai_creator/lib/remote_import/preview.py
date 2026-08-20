@@ -20,7 +20,7 @@ def parse_google_sheet(url):
         sheet_id = parts[0]
 
     if not sheet_id:
-        frappe.throw("رابط Google Sheet غير صالح — يجب أن يحتوي على /spreadsheets/d/")
+        frappe.throw("Invalid Google Sheet URL — must contain /spreadsheets/d/")
 
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 
@@ -28,7 +28,7 @@ def parse_google_sheet(url):
         resp = requests.get(csv_url, timeout=30)
         resp.raise_for_status()
     except Exception as e:
-        frappe.throw(f"فشل تحميل Google Sheet: {e}. تأكد أن الورقة عامة (Public)")
+        frappe.throw(f"Failed to load Google Sheet: {e}. Make sure the sheet is Public")
 
     return parse_file(file_content=resp.content, file_name=f"google_sheet_{sheet_id}.csv")
 
@@ -59,7 +59,7 @@ def parse_file(file_url=None, file_content=None, file_name=None):
             file_content = f.read()
 
     if not file_content:
-        frappe.throw("لم يتم تحديد ملف للمعاينة")
+        frappe.throw("No file specified for preview")
 
     file_name = file_name or "unknown"
     ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
@@ -81,7 +81,7 @@ def _parse_excel(content, file_name):
     try:
         from openpyxl import load_workbook
     except ImportError:
-        frappe.throw("مكتبة openpyxl مطلوبة — pip install openpyxl")
+        frappe.throw("openpyxl is required — pip install openpyxl")
 
     wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     ws = wb.active
@@ -119,7 +119,7 @@ def _parse_csv(content, file_name):
             except (UnicodeDecodeError, ValueError):
                 continue
         else:
-            frappe.throw("لم يتم التعرف على ترميز الملف")
+            frappe.throw("Could not detect file encoding")
     else:
         text = content
 
@@ -189,7 +189,7 @@ def validate_data(file_url, mapping, client_site, doctype):
 
             # Check required
             if field_info.get("reqd") and not value:
-                row_warnings.append(f"الحقل المطلوب '{field_info.get('label', target_field)}' فارغ")
+                row_warnings.append(f"Required field '{field_info.get('label', target_field)}' is empty")
 
             # Check data types
             if value and field_info["fieldtype"] in ("Int", "Float", "Currency", "Percent"):

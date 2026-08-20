@@ -61,7 +61,7 @@ def download_template_excel(client_site, doctype):
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment
     except ImportError:
-        frappe.throw("مكتبة openpyxl مطلوبة — pip install openpyxl")
+        frappe.throw("openpyxl is required — pip install openpyxl")
 
     tmpl = generate_template(client_site, doctype)
 

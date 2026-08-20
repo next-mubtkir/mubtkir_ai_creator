@@ -8,7 +8,7 @@ def enqueue_import(import_name):
     doc = frappe.get_doc("AI Remote Import", import_name)
 
     if doc.status in ("Running", "Queued"):
-        frappe.throw("هذا الاستيراد قيد التنفيذ بالفعل")
+        frappe.throw("This import is already running")
 
     doc.db_set("status", "Queued")
     frappe.db.commit()
@@ -29,7 +29,7 @@ def cancel_import(import_name):
     doc = frappe.get_doc("AI Remote Import", import_name)
 
     if doc.status not in ("Running", "Queued"):
-        frappe.throw("لا يمكن إلغاء استيراد ليس قيد التنفيذ")
+        frappe.throw("Cannot cancel an import that is not running")
 
     doc.db_set("status", "Cancelled")
     doc.db_set("is_resumable", 1 if doc.imported_rows else 0)

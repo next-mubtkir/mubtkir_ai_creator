@@ -13,10 +13,10 @@ def resume_import(import_name):
     doc = frappe.get_doc("AI Remote Import", import_name)
 
     if not doc.is_resumable:
-        frappe.throw("هذا الاستيراد لا يمكن استئنافه")
+        frappe.throw("This import cannot be resumed")
 
     if doc.status in ("Running", "Queued"):
-        frappe.throw("الاستيراد قيد التنفيذ بالفعل")
+        frappe.throw("Import is already running")
 
     # Calculate the row index to resume from
     last_row = doc.last_successful_row or 0
@@ -44,17 +44,17 @@ def retry_failed_rows(import_name):
     doc = frappe.get_doc("AI Remote Import", import_name)
 
     if doc.status in ("Running", "Queued"):
-        frappe.throw("الاستيراد قيد التنفيذ بالفعل")
+        frappe.throw("Import is already running")
 
     errors = []
     if doc.error_log:
         try:
             errors = json.loads(doc.error_log)
         except (json.JSONDecodeError, TypeError):
-            frappe.throw("لا توجد بيانات أخطاء صالحة للمحاولة مرة أخرى")
+            frappe.throw("No valid error data to retry")
 
     if not errors:
-        frappe.throw("لا توجد صفوف فاشلة لإعادة المحاولة")
+        frappe.throw("No failed rows to retry")
 
     failed_row_nums = {e["row"] for e in errors if isinstance(e, dict) and "row" in e}
 
@@ -71,7 +71,7 @@ def retry_failed_rows(import_name):
             retry_rows.append(all_rows[idx])
 
     if not retry_rows:
-        frappe.throw("لم يتم العثور على صفوف فاشلة في الملف الأصلي")
+        frappe.throw("Failed rows not found in the original file")
 
     # Create a new import record for the retry
     retry_doc = frappe.get_doc({

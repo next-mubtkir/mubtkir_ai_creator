@@ -64,7 +64,7 @@ def run_import(import_name, start_row=0):
         mapping = json.loads(map_doc.mapping_data or "{}")
 
     if not mapping:
-        frappe.throw("لم يتم تحديد خريطة الأعمدة")
+        frappe.throw("Column mapping is not defined")
 
     # Update total
     doc.db_set("total_rows", len(rows))
@@ -146,6 +146,7 @@ def run_import(import_name, start_row=0):
     # Final status
     doc.db_set("error_log", json.dumps(errors[-1000:], ensure_ascii=False) if errors else "[]")
     doc.update_progress(imported, failed, skipped, total_batches)
+    frappe.db.commit()  # Ensure progress is persisted before status update
 
     if failed == 0:
         status = "Success"
@@ -156,11 +157,13 @@ def run_import(import_name, start_row=0):
 
     doc.finish_import(status)
     _create_import_log(doc, imported, failed, skipped, errors)
+    frappe.db.commit()  # Final commit
 
     frappe.publish_realtime(
         "import_complete",
         {"import_name": import_name, "status": status, "imported": imported,
-         "failed": failed, "skipped": skipped},
+         "failed": failed, "skipped": skipped,
+         "total_rows": len(rows), "total_batches": total_batches},
         user=doc.started_by,
     )
 
@@ -180,7 +183,7 @@ def _get_import_func(import_type):
     }
     func = funcs.get(import_type)
     if not func:
-        frappe.throw(f"نوع الاستيراد غير مدعوم: {import_type}")
+        frappe.throw(f"Unsupported import type: {import_type}")
     return func
 
 
@@ -245,7 +248,7 @@ def _do_update(client, doctype, data, import_doc):
     """Update an existing document by name."""
     name = data.pop("name", None)
     if not name:
-        raise ValueError("عمود 'name' مطلوب لعملية التحديث")
+        raise ValueError("'name' column is required for Update")
     client.update_doc(doctype, name, data)
 
 
@@ -266,7 +269,7 @@ def _do_update_if_exists(client, doctype, data, import_doc):
     """Update only if the document exists, otherwise skip."""
     name = data.pop("name", None)
     if not name:
-        raise ValueError("عمود 'name' مطلوب لعملية التحديث")
+        raise ValueError("'name' column is required for Update")
     try:
         client.get_doc(doctype, name)
         client.update_doc(doctype, name, data)
@@ -278,7 +281,7 @@ def _do_submit(client, doctype, data, import_doc):
     """Submit an existing document."""
     name = data.get("name")
     if not name:
-        raise ValueError("عمود 'name' مطلوب لعملية الاعتماد")
+        raise ValueError("'name' column is required for Submit")
     client.call_method("frappe.client.submit", {"doc": json.dumps({"doctype": doctype, "name": name})})
 
 
@@ -286,7 +289,7 @@ def _do_cancel(client, doctype, data, import_doc):
     """Cancel a submitted document."""
     name = data.get("name")
     if not name:
-        raise ValueError("عمود 'name' مطلوب لعملية الإلغاء")
+        raise ValueError("'name' column is required for Cancel")
     client.call_method("frappe.client.cancel", {"doctype": doctype, "name": name})
 
 
@@ -295,7 +298,7 @@ def _do_rename(client, doctype, data, import_doc):
     old_name = data.get("name")
     new_name = data.get("new_name") or data.get("title")
     if not old_name or not new_name:
-        raise ValueError("'name' و 'new_name' مطلوبان لعملية إعادة التسمية")
+        raise ValueError("'name' and 'new_name' are required for Rename")
     client.call_method("frappe.client.rename_doc", {
         "doctype": doctype,
         "old": old_name,

@@ -10,16 +10,16 @@ from frappe.utils import now_datetime
 class AIRemoteImport(Document):
     def validate(self):
         if not self.source_file and not self.google_sheet_url:
-            frappe.throw("يجب رفع ملف أو إدخال رابط Google Sheet")
+            frappe.throw("Please upload a file or enter a Google Sheet URL")
 
         if self.batch_size and self.batch_size < 10:
-            frappe.throw("حجم الدفعة يجب أن يكون 10 على الأقل")
+            frappe.throw("Batch size must be at least 10")
 
         if self.column_mapping:
             try:
                 json.loads(self.column_mapping)
             except (json.JSONDecodeError, TypeError):
-                frappe.throw("خريطة الأعمدة يجب أن تكون JSON صالح")
+                frappe.throw("Column mapping must be valid JSON")
 
     def before_insert(self):
         self.started_by = frappe.session.user

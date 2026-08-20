@@ -305,6 +305,73 @@ def _mandatory_request_type_check(session_name, call):
     )
 
 
+def _clean_api_error(raw):
+    """Extract a clean, readable error message from raw API error strings.
+
+    Handles: JSON exception bodies, Unicode escapes, _server_messages, stack traces.
+    Returns a short human-readable string.
+    """
+    if not raw:
+        return "Unknown error"
+    import re
+
+    # 1. Try to decode Unicode escapes (\u0644 → ل)
+    decoded = raw
+    if "\\u0" in raw:
+        try:
+            decoded = raw.encode("utf-8").decode("unicode_escape")
+        except Exception:
+            pass
+
+    # 2. Try to extract _server_messages (list of JSON strings)
+    sm_match = re.search(r'"_server_messages"\s*:\s*"(\[.+?\])"', decoded)
+    if sm_match:
+        try:
+            msgs = json.loads(sm_match.group(1).replace('\\"', '"'))
+            parts = []
+            for m in msgs:
+                try:
+                    parts.append(json.loads(m).get("message", m))
+                except Exception:
+                    parts.append(str(m))
+            if parts:
+                return " | ".join(parts)[:500]
+        except Exception:
+            pass
+
+    # 3. Try to extract exception message from JSON body
+    exc_match = re.search(r'"exception"\s*:\s*"([^"]+)"', decoded)
+    if exc_match:
+        msg = exc_match.group(1)
+        # Remove exception class prefix
+        msg = re.sub(r'^frappe\.exceptions\.\w+:\s*', '', msg)
+        # Remove \n and traceback noise
+        msg = msg.split("\\n")[0].strip()
+        if msg:
+            return msg[:500]
+
+    # 4. Try to find ValidationError/LinkValidationError message directly
+    val_match = re.search(r'(?:ValidationError|LinkValidationError):\s*(.+?)(?:\\n|$)', decoded)
+    if val_match:
+        return val_match.group(1).strip()[:500]
+
+    # 5. Try OperationalError
+    op_match = re.search(r'OperationalError.*?:\s*(.+?)(?:\\n|$)', decoded)
+    if op_match:
+        return op_match.group(1).strip()[:500]
+
+    # 6. Fallback: strip URLs and code noise, return first meaningful part
+    clean = re.sub(r'https?://[^\s,}"]+', '', decoded)
+    clean = re.sub(r'\\n', ' ', clean)
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    # Try to find the Arabic/English message part
+    msg_match = re.search(r'"message"\s*:\s*"([^"]+)"', clean)
+    if msg_match:
+        return msg_match.group(1)[:500]
+
+    return clean[:500] if clean else "Unknown error"
+
+
 def _execute_call(client, client_site, session_name, task_name, call):
     start = time.time()
     risk = tools.get_risk(call["name"])
@@ -351,7 +418,9 @@ def _execute_call(client, client_site, session_name, task_name, call):
         output = tools.run_tool(client, call["name"], args)
         success, error = 1, None
     except Exception as e:
-        output, success, error = None, 0, str(e)[:1000]
+        raw_error = str(e)[:2000]
+        error = _clean_api_error(raw_error)
+        output, success = {"error": error}, 0
 
     log_action(
         client_site=client_site,

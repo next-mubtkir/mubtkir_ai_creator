@@ -116,5 +116,5 @@ def list_custom_blocks(client):
     return client.get_list(
         "Custom HTML Block",
         fields=["name", "html", "private", "modified"],
-        limit=50,
+        limit=200,
     ).get("data") or []

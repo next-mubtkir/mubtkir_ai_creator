@@ -381,6 +381,23 @@ def create_document(client, doctype, data):
     },
 )
 def update_document(client, doctype, name, data):
+    # Workspace content must be a JSON list string — guard against LLM sending wrong format
+    if doctype == "Workspace" and "content" in data:
+        import json as _json
+        val = data["content"]
+        try:
+            if isinstance(val, list):
+                data["content"] = _json.dumps(val, ensure_ascii=False)
+            elif isinstance(val, dict):
+                data["content"] = _json.dumps([val], ensure_ascii=False)
+            elif isinstance(val, str):
+                parsed = _json.loads(val)
+                if isinstance(parsed, dict):
+                    data["content"] = _json.dumps([parsed], ensure_ascii=False)
+                elif not isinstance(parsed, list):
+                    data["content"] = "[]"
+        except (ValueError, TypeError):
+            data["content"] = "[]"
     return client.update_doc(doctype, name, data).get("data")
 
 

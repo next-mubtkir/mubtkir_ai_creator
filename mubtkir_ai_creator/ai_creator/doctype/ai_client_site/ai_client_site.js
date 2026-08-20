@@ -91,7 +91,11 @@ frappe.ui.form.on('AI Client Site', {
 				d.fields_dict.results.$wrapper.empty().append($list);
 			}
 
-			d.fields_dict.load.$input.on('click', function () {
+			// Show dialog FIRST, then bind events (Button $input only exists after render)
+			d.show();
+
+			// Bind load button
+			d.fields_dict.load.$input.off('click').on('click', function () {
 				frappe.call({
 					method: 'mubtkir_ai_creator.lib.templates.run_list_available',
 					args: {
@@ -104,7 +108,8 @@ frappe.ui.form.on('AI Client Site', {
 				});
 			});
 
-			d.fields_dict.select_all.$input.on('click', function () {
+			// Bind select all button
+			d.fields_dict.select_all.$input.off('click').on('click', function () {
 				if (!lastRows.length) return;
 				frappe.confirm(
 					__('التقاط كل العناصر المعروضة ({0}) كقوالب؟', [lastRows.length]),
@@ -124,7 +129,6 @@ frappe.ui.form.on('AI Client Site', {
 				);
 			});
 
-			d.show();
 		}, __('Templates'));
 
 	},

@@ -106,7 +106,7 @@
   {
    "fieldname": "planned_calls",
    "fieldtype": "Code",
-   "label": "Planned Tool Calls (JSON)",
+   "label": "Planned Tool Calls",
    "options": "JSON",
    "read_only": 1
   },

@@ -115,7 +115,7 @@
   {
    "fieldname": "payload",
    "fieldtype": "Code",
-   "label": "Content (JSON)",
+   "label": "Content",
    "options": "JSON",
    "read_only": 1,
    "in_global_search": 1

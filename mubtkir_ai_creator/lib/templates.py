@@ -116,7 +116,7 @@ def capture(client_site, artifact_type, source_name, title=None, notes=None):
 
 
 def capture_all(client_site, target_doctype=None, artifact_types=None):
-    """التقاط كل تخصيصات عميل دفعة واحدة (اختياريًا لـ DocType محدد)."""
+    """Capture all customizations from a client in ONE template per type."""
     types = artifact_types or list(ARTIFACTS.keys())
     results, errors = [], []
 
@@ -127,14 +127,99 @@ def capture_all(client_site, target_doctype=None, artifact_types=None):
             errors.append({"type": artifact_type, "error": str(e)[:300]})
             continue
 
-        for item in items:
+        if not items:
+            continue
+
+        names = [item.get("name") for item in items if item.get("name")]
+        if names:
             try:
-                res = capture(client_site, artifact_type, item.get("name"))
-                results.append({"type": artifact_type, "name": item.get("name"), "template": res["template"]})
+                res = capture_batch(client_site, artifact_type, names)
+                results.append({"type": artifact_type, "count": len(names), "template": res["template"]})
             except Exception as e:
-                errors.append({"type": artifact_type, "name": item.get("name"), "error": str(e)[:300]})
+                errors.append({"type": artifact_type, "error": str(e)[:300]})
 
     return {"captured": len(results), "items": results, "errors": errors}
+
+
+def capture_batch(client_site, artifact_type, source_names, title=None, notes=None):
+    """Capture multiple items of the same type into ONE AI Template.
+
+    source_names: list of document names to capture together.
+    The payload becomes a list of payloads instead of a single object.
+    """
+    if artifact_type not in ARTIFACTS:
+        frappe.throw(f"Unsupported type: {artifact_type}")
+
+    if not source_names or not isinstance(source_names, (list, tuple)):
+        frappe.throw("source_names must be a non-empty list")
+
+    # If only one item, delegate to single capture
+    if len(source_names) == 1:
+        return capture(client_site, artifact_type, source_names[0], title, notes)
+
+    client = FrappeSiteClient(client_site)
+    doctype = ARTIFACTS[artifact_type]["doctype"]
+
+    payloads = []
+    captured_names = []
+    target_doctype = ""
+
+    for name in source_names:
+        try:
+            doc = client.get_doc(doctype, name).get("data") or {}
+            if not doc:
+                continue
+            payload = {k: v for k, v in doc.items() if k not in STRIP_FIELDS and v is not None}
+            payloads.append(payload)
+            captured_names.append(name)
+            if not target_doctype:
+                target_doctype = doc.get("dt") or doc.get("doc_type") or doc.get("reference_doctype") or ""
+        except Exception:
+            continue
+
+    if not payloads:
+        frappe.throw("No items could be captured")
+
+    # Version tracking based on client + type combo
+    names_key = ", ".join(sorted(captured_names))
+    auto_title = title or f"{artifact_type}: {len(captured_names)} items"
+
+    previous = frappe.db.get_value(
+        "AI Template",
+        {"source_client": client_site, "artifact_type": artifact_type, "title": auto_title},
+        ["name", "version"],
+        order_by="version desc",
+        as_dict=True,
+    )
+    version = (previous.version + 1) if previous else 1
+
+    tpl = frappe.get_doc({
+        "doctype": "AI Template",
+        "title": auto_title,
+        "artifact_type": artifact_type,
+        "source_client": client_site,
+        "source_name": names_key[:140],
+        "target_doctype": target_doctype,
+        "payload": json.dumps(payloads, ensure_ascii=False, indent=2),
+        "version": version,
+        "previous_version": previous.name if previous else None,
+        "deployable": 1 if ARTIFACTS[artifact_type]["deployable"] else 0,
+        "captured_on": now_datetime(),
+        "notes": notes or f"Batch capture: {', '.join(captured_names)}",
+    })
+    tpl.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"template": tpl.name, "version": version, "count": len(captured_names), "names": captured_names}
+
+
+@frappe.whitelist()
+def run_capture_batch(client_site, artifact_type, source_names):
+    """Whitelisted wrapper for capture_batch."""
+    frappe.only_for(["System Manager", "AI Creator Supervisor", "AI Creator User"])
+    if isinstance(source_names, str):
+        source_names = json.loads(source_names)
+    return capture_batch(client_site, artifact_type, source_names)
 
 
 @frappe.whitelist()

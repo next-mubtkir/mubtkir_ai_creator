@@ -27,7 +27,7 @@ def create_deployment_from_template(name):
         "doctype": "AI Deployment",
         "title": f"نشر: {tpl.title}",
         "deployment_type": tpl.artifact_type,
-        "source_mode": "من قالب",
+        "source_mode": "From Template",
         "source_template": tpl.name,
         "target_doctype": tpl.target_doctype,
     })

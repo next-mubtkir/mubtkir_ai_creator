@@ -178,7 +178,7 @@
   {
    "fieldname": "errors",
    "fieldtype": "Code",
-   "label": "Error Details (JSON)",
+   "label": "Error Details",
    "options": "JSON"
   }
  ],

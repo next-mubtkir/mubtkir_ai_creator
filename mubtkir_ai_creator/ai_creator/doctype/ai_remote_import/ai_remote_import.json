@@ -251,7 +251,7 @@
   {
    "fieldname": "column_mapping",
    "fieldtype": "Code",
-   "label": "Column Mapping (JSON)",
+   "label": "Column Mapping",
    "options": "JSON"
   },
   {
@@ -327,7 +327,7 @@
   {
    "fieldname": "error_log",
    "fieldtype": "Code",
-   "label": "Error Details (JSON)",
+   "label": "Error Details",
    "options": "JSON",
    "read_only": 1
   },

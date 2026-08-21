@@ -80,7 +80,7 @@
   {
    "fieldname": "messages",
    "fieldtype": "Long Text",
-   "label": "Conversation Log (JSON)",
+   "label": "Conversation Log",
    "read_only": 1
   },
   {

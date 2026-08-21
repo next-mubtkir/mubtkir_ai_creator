@@ -50,7 +50,7 @@
   {
    "fieldname": "mapping_data",
    "fieldtype": "Code",
-   "label": "Mapping Data (JSON)",
+   "label": "Mapping Data",
    "options": "JSON",
    "reqd": 1
   },

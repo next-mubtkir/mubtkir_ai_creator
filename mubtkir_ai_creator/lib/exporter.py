@@ -39,7 +39,7 @@ def export_templates_excel(client_site=None, artifact_types=None, target_doctype
     wb = Workbook()
     ws = wb.active
     ws.title = "Templates"
-    ws.sheet_properties.sheetView.rightToLeft = True
+    ws.sheet_view.rightToLeft = True
 
     headers = ["Template ID", "Title", "Type", "Source Client", "Source Name",
                "Target DocType", "Version", "Deployable", "Captured On", "Notes"]
@@ -72,7 +72,7 @@ def export_templates_excel(client_site=None, artifact_types=None, target_doctype
     for atype, items in by_type.items():
         sheet_name = atype.replace("/", "-")[:30]
         ws2 = wb.create_sheet(title=sheet_name)
-        ws2.sheet_properties.sheetView.rightToLeft = True
+        ws2.sheet_view.rightToLeft = True
         ws2.cell(row=1, column=1, value="Source Name").font = Font(bold=True)
         ws2.cell(row=1, column=2, value="Client").font = Font(bold=True)
         ws2.cell(row=1, column=3, value="Payload (JSON)").font = Font(bold=True)

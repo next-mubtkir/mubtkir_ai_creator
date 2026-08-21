@@ -2,126 +2,116 @@ frappe.ui.form.on('AI Client Site', {
 	refresh: function (frm) {
 		if (frm.is_new()) return;
 
-		frm.add_custom_button(__('فحص الاتصال'), function () {
+		// ===== 1. Test Connection =====
+		frm.add_custom_button('Test Connection', function () {
 			frm.dashboard.clear_headline();
-			frappe.dom.freeze(__('جارٍ فحص الاتصال...'));
-
+			frappe.dom.freeze('Testing connection...');
 			frappe.call({
 				method: 'mubtkir_ai_creator.ai_creator.doctype.ai_client_site.ai_client_site.test_connection',
 				args: { name: frm.doc.name },
 				callback: function (r) {
 					frappe.dom.unfreeze();
-					const res = r.message || {};
-
-					if (res.status === 'Connected') {
-						frappe.show_alert(
-							{ message: __('تم الاتصال بنجاح — المستخدم: {0}', [res.user || '']), indicator: 'green' },
-							7
-						);
-					} else {
-						frappe.msgprint({
-							title: __('فشل الاتصال'),
-							indicator: 'red',
-							message: `<pre style="white-space:pre-wrap;direction:ltr;text-align:left;">${frappe.utils.escape_html(
-								res.error || 'خطأ غير معروف'
-							)}</pre>`,
-						});
-					}
 					frm.reload_doc();
+					const m = r.message || {};
+					frm.dashboard.set_headline_alert(
+						`<span class="indicator ${m.ok ? 'green' : 'red'}">${
+							m.ok
+								? 'Connected — Frappe ' + (m.frappe_version || '') + ' / ERPNext ' + (m.erpnext_version || '')
+								: 'Failed — ' + (m.error || '')
+						}</span>`
+					);
 				},
-				error: function () {
-					frappe.dom.unfreeze();
-				},
+				error: function () { frappe.dom.unfreeze(); },
 			});
-		}).addClass('btn-primary');
+		});
 
-		// شريط حالة أعلى النموذج
-		const map = {
-			Connected: ['green', 'متصل'],
-			Failed: ['red', 'فشل الاتصال'],
-			Unknown: ['orange', 'لم يتم الفحص بعد'],
-		};
-		const s = map[frm.doc.status] || map.Unknown;
-		frm.dashboard.set_headline_alert(
-			`<span class="indicator ${s[0]}">${s[1]}${
-				frm.doc.last_connection_check ? ' — آخر فحص: ' + frappe.datetime.str_to_user(frm.doc.last_connection_check) : ''
-			}</span>`
-		);
-	},
-});
-
-// أزرار الالتقاط داخل نموذج العميل
-frappe.ui.form.on('AI Client Site', {
-	onload_post_render: function (frm) {
-		if (frm.is_new()) return;
-
-		frm.add_custom_button(__('التقاط تخصيص'), function () {
+		// ===== 2. Capture Customization (batch → ONE template) =====
+		frm.add_custom_button('Capture Customization', function () {
 			const d = new frappe.ui.Dialog({
-				title: __('التقاط تخصيص من هذا العميل'),
+				title: 'Capture Customization from this Client',
 				fields: [
-					{
-						fieldname: 'artifact_type',
-						label: __('النوع'),
-						fieldtype: 'Select',
-						options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script',
-						reqd: 1,
-						default: 'Print Format',
-					},
-					{ fieldname: 'target_doctype', label: __('حصر بـ DocType (اختياري)'), fieldtype: 'Data' },
-					{ fieldname: 'load', label: __('استعراض المتاح'), fieldtype: 'Button' },
+					{ fieldname: 'artifact_type', label: 'Type', fieldtype: 'Select',
+					  options: 'Custom Field\nProperty Setter\nPrint Format\nClient Script\nServer Script\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier',
+					  reqd: 1, default: 'Print Format' },
+					{ fieldname: 'target_doctype', label: 'Filter by DocType (optional)', fieldtype: 'Data' },
+					{ fieldname: 'load', label: 'Browse Available', fieldtype: 'Button' },
 					{ fieldname: 'results', fieldtype: 'HTML' },
 				],
 			});
 
-			d.fields_dict.load.$input.on('click', function () {
-				frappe.call({
-					method: 'mubtkir_ai_creator.lib.templates.run_list_available',
-					args: {
-						client_site: frm.doc.name,
-						artifact_type: d.get_value('artifact_type'),
-						target_doctype: d.get_value('target_doctype') || null,
-					},
-					freeze: true,
-					callback: function (r) {
-						const rows = r.message || [];
-						if (!rows.length) {
-							d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا النوع</div>');
-							return;
-						}
-						const $list = $('<div dir="rtl" style="max-height:300px;overflow:auto;"></div>');
-						rows.forEach((row) => {
-							const $item = $(`
-								<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);">
-									<span>${frappe.utils.escape_html(row.name)}</span>
-									<button class="btn btn-xs btn-default">التقاط</button>
-								</div>
-							`);
-							$item.find('button').on('click', function () {
-								frappe.call({
-									method: 'mubtkir_ai_creator.lib.templates.run_capture',
-									args: {
-										client_site: frm.doc.name,
-										artifact_type: d.get_value('artifact_type'),
-										source_name: row.name,
-									},
-									freeze: true,
-									callback: function (res) {
-										const m = res.message || {};
-										frappe.show_alert(
-											{ message: __('تم الالتقاط — النسخة {0}', [m.version]), indicator: 'green' },
-											5
-										);
-									},
-								});
-							});
-							$list.append($item);
-						});
-						d.fields_dict.results.$wrapper.empty().append($list);
-					},
+			let selectedNames = new Set();
+
+			function doCapture() {
+				const names = Array.from(selectedNames);
+				if (!names.length) { frappe.msgprint('Select at least one item'); return; }
+				frappe.confirm('Capture ' + names.length + ' item(s) into one template?', function () {
+					frappe.dom.freeze('Capturing...');
+					frappe.call({
+						method: 'mubtkir_ai_creator.lib.templates.run_capture_batch',
+						args: { client_site: frm.doc.name, artifact_type: d.get_value('artifact_type'), source_names: JSON.stringify(names) },
+						callback: function (r) {
+							frappe.dom.unfreeze();
+							const m = r.message || {};
+							frappe.show_alert({ message: 'Captured ' + (m.count || names.length) + ' items → ' + (m.template || ''), indicator: 'green' }, 6);
+							d.hide();
+						},
+						error: function () { frappe.dom.unfreeze(); },
+					});
 				});
-			});
+			}
+
+			function renderResults(rows) {
+				selectedNames.clear();
+				const $w = d.fields_dict.results.$wrapper;
+				if (!rows.length) {
+					$w.html('<div class="text-muted" style="padding:12px">No items found</div>');
+					return;
+				}
+				const $list = $('<div style="max-height:350px;overflow:auto"></div>');
+
+				// Select All header
+				const $hdr = $('<div style="display:flex;align-items:center;padding:8px 0;border-bottom:2px solid var(--border-color);font-weight:600"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1"><input type="checkbox" class="ri-sa"> Select All (' + rows.length + ')</label></div>');
+				$hdr.find('.ri-sa').on('change', function() {
+					const c = this.checked;
+					$list.find('.ri-ic').prop('checked', c);
+					if (c) rows.forEach(r => selectedNames.add(r.name));
+					else selectedNames.clear();
+					_upd();
+				});
+				$list.append($hdr);
+
+				rows.forEach(row => {
+					const $item = $('<div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color)"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1"><input type="checkbox" class="ri-ic"><span>' + frappe.utils.escape_html(row.name) + '</span></label></div>');
+					$item.find('.ri-ic').on('change', function() {
+						if (this.checked) selectedNames.add(row.name);
+						else selectedNames.delete(row.name);
+						_upd();
+					});
+					$list.append($item);
+				});
+
+				// Capture button rendered as HTML (avoids Frappe Button field re-render issues)
+				const $btn = $('<div style="padding:12px 0"><button class="btn btn-primary btn-sm ri-capture-btn">Capture Selected</button></div>');
+				$btn.find('.ri-capture-btn').on('click', doCapture);
+
+				$w.empty().append($list).append($btn);
+			}
+
+			function _upd() {
+				const $btn = d.$wrapper.find('.ri-capture-btn');
+				$btn.text(selectedNames.size ? 'Capture Selected (' + selectedNames.size + ')' : 'Capture Selected');
+			}
 
 			d.show();
-		});
+
+			d.fields_dict.load.$input.off('click').on('click', function () {
+				frappe.call({
+					method: 'mubtkir_ai_creator.lib.templates.run_list_available',
+					args: { client_site: frm.doc.name, artifact_type: d.get_value('artifact_type'), target_doctype: d.get_value('target_doctype') || null },
+					freeze: true,
+					callback: function (r) { renderResults(r.message || []); },
+				});
+			});
+		}, 'Templates');
 	},
 });

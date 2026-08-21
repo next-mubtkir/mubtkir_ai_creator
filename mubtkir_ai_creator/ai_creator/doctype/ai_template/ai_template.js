@@ -1,8 +1,8 @@
 frappe.ui.form.on('AI Template', {
     refresh: function(frm) {
-        if (window.mubtkir && mubtkir.renderJsonField) {
+        _withRenderer(function() {
             mubtkir.renderJsonField(frm, 'payload', { type: 'key_value' });
-        }
+        });
 
         if (frm.is_new()) return;
         if (frm.doc.deployable && ['Print Format', 'Custom Field'].includes(frm.doc.artifact_type)) {
@@ -18,3 +18,12 @@ frappe.ui.form.on('AI Template', {
         }
     },
 });
+
+function _withRenderer(fn) {
+    if (window.mubtkir && mubtkir.renderJsonField) { fn(); return; }
+    var tries = 0;
+    var iv = setInterval(function() {
+        if (window.mubtkir && mubtkir.renderJsonField) { clearInterval(iv); fn(); }
+        if (++tries > 30) clearInterval(iv);
+    }, 100);
+}

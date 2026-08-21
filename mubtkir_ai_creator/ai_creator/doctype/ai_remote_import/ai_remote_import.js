@@ -67,10 +67,10 @@ frappe.ui.form.on("AI Remote Import", {
         frm.page.set_indicator(status, colors[status] || "grey");
 
         // Render JSON fields as readable UI
-        if (window.mubtkir && mubtkir.renderJsonField) {
+        _withRenderer(function() {
             mubtkir.renderJsonField(frm, 'error_log', { type: 'error_list' });
             mubtkir.renderJsonField(frm, 'column_mapping', { type: 'mapping' });
-        }
+        });
     },
 
     onload(frm) {
@@ -79,3 +79,12 @@ frappe.ui.form.on("AI Remote Import", {
         }
     },
 });
+
+function _withRenderer(fn) {
+    if (window.mubtkir && mubtkir.renderJsonField) { fn(); return; }
+    var tries = 0;
+    var iv = setInterval(function() {
+        if (window.mubtkir && mubtkir.renderJsonField) { clearInterval(iv); fn(); }
+        if (++tries > 30) clearInterval(iv);
+    }, 100);
+}

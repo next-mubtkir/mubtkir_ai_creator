@@ -1,39 +1,185 @@
 {
  "actions": [],
- "autoname": "format:LOG-{YY}{MM}-{######}",
+ "autoname": "naming_series:LOG-.YY.-.MM.-.####",
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "timestamp", "log_user", "column_break_1", "client_site", "site_url",
-  "ref_section", "session", "task", "column_break_2", "tool_name", "risk_level",
-  "data_section", "tool_input", "tool_output", "column_break_3", "value_before", "value_after",
-  "status_section", "is_success", "duration_ms", "column_break_4", "error_message", "verification_result"
+  "naming_series",
+  "timestamp",
+  "log_user",
+  "column_break_1",
+  "client_site",
+  "site_url",
+  "ref_section",
+  "session",
+  "task",
+  "column_break_2",
+  "tool_name",
+  "risk_level",
+  "data_section",
+  "tool_input",
+  "tool_output",
+  "column_break_3",
+  "value_before",
+  "value_after",
+  "status_section",
+  "is_success",
+  "duration_ms",
+  "column_break_4",
+  "error_message",
+  "verification_result"
  ],
  "fields": [
-  {"fieldname": "timestamp", "fieldtype": "Datetime", "label": "الوقت", "read_only": 1, "in_list_view": 1},
-  {"fieldname": "log_user", "fieldtype": "Link", "label": "الموظف", "options": "User", "read_only": 1},
-  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
-  {"fieldname": "client_site", "fieldtype": "Link", "label": "العميل", "options": "AI Client Site", "read_only": 1, "in_list_view": 1},
-  {"fieldname": "site_url", "fieldtype": "Data", "label": "الموقع", "read_only": 1},
-  {"fieldname": "ref_section", "fieldtype": "Section Break"},
-  {"fieldname": "session", "fieldtype": "Link", "label": "الجلسة", "options": "AI Session", "read_only": 1},
-  {"fieldname": "task", "fieldtype": "Link", "label": "المهمة", "options": "AI Task", "read_only": 1},
-  {"fieldname": "column_break_2", "fieldtype": "Column Break"},
-  {"fieldname": "tool_name", "fieldtype": "Data", "label": "الأداة", "read_only": 1, "in_list_view": 1},
-  {"fieldname": "risk_level", "fieldtype": "Data", "label": "مستوى الخطورة", "read_only": 1},
-  {"fieldname": "data_section", "fieldtype": "Section Break", "label": "البيانات"},
-  {"fieldname": "tool_input", "fieldtype": "Code", "label": "المدخلات", "options": "JSON", "read_only": 1},
-  {"fieldname": "tool_output", "fieldtype": "Code", "label": "استجابة API", "options": "JSON", "read_only": 1},
-  {"fieldname": "column_break_3", "fieldtype": "Column Break"},
-  {"fieldname": "value_before", "fieldtype": "Code", "label": "القيم قبل", "options": "JSON", "read_only": 1},
-  {"fieldname": "value_after", "fieldtype": "Code", "label": "القيم بعد", "options": "JSON", "read_only": 1},
-  {"fieldname": "status_section", "fieldtype": "Section Break"},
-  {"fieldname": "is_success", "fieldtype": "Check", "label": "نجحت", "read_only": 1, "in_list_view": 1},
-  {"fieldname": "duration_ms", "fieldtype": "Int", "label": "المدة (ms)", "read_only": 1},
-  {"fieldname": "column_break_4", "fieldtype": "Column Break"},
-  {"fieldname": "error_message", "fieldtype": "Small Text", "label": "الخطأ", "read_only": 1},
-  {"fieldname": "verification_result", "fieldtype": "Code", "label": "نتيجة التحقق", "options": "JSON", "read_only": 1}
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LOG-.YY.-.MM.-.####",
+   "default": "LOG-.YY.-.MM.-.####",
+   "hidden": 1,
+   "no_copy": 1,
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "timestamp",
+   "fieldtype": "Datetime",
+   "label": "Timestamp",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "log_user",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "client_site",
+   "fieldtype": "Link",
+   "label": "Client",
+   "options": "AI Client Site",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "site_url",
+   "fieldtype": "Data",
+   "label": "Site URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ref_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "session",
+   "fieldtype": "Link",
+   "label": "Session",
+   "options": "AI Session",
+   "read_only": 1
+  },
+  {
+   "fieldname": "task",
+   "fieldtype": "Link",
+   "label": "Task",
+   "options": "AI Task",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tool_name",
+   "fieldtype": "Data",
+   "label": "Tool",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Data",
+   "label": "Risk Level",
+   "read_only": 1
+  },
+  {
+   "fieldname": "data_section",
+   "fieldtype": "Section Break",
+   "label": "Data"
+  },
+  {
+   "fieldname": "tool_input",
+   "fieldtype": "Code",
+   "label": "Tool Input",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tool_output",
+   "fieldtype": "Code",
+   "label": "API Response",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "value_before",
+   "fieldtype": "Code",
+   "label": "Value Before",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "value_after",
+   "fieldtype": "Code",
+   "label": "Value After",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "is_success",
+   "fieldtype": "Check",
+   "label": "Succeeded",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "duration_ms",
+   "fieldtype": "Int",
+   "label": "Duration (ms)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "verification_result",
+   "fieldtype": "Code",
+   "label": "Verification Result",
+   "options": "JSON",
+   "read_only": 1
+  }
  ],
  "links": [],
  "modified": "2026-01-01 00:00:00.000000",
@@ -41,10 +187,23 @@
  "name": "AI Action Log",
  "owner": "Administrator",
  "permissions": [
-  {"read": 1, "role": "System Manager", "share": 1, "report": 1, "export": 1},
-  {"read": 1, "role": "AI Creator User"},
-  {"read": 1, "role": "AI Creator Supervisor"}
+  {
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "read": 1,
+   "role": "AI Creator User"
+  },
+  {
+   "read": 1,
+   "role": "AI Creator Supervisor"
+  }
  ],
  "sort_field": "timestamp",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "naming_rule": "By \"Naming Series\" field"
 }

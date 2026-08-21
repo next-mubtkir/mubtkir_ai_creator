@@ -46,7 +46,7 @@ def needs_approval(risk):
 # ---------------- الحلقة الرئيسية ----------------
 
 def run_turn(session_name, user_message, file_urls=None):
-    """دورة محادثة واحدة. تنفذ أدوات القراءة تلقائيًا، وتتوقف عند أول أداة تحتاج موافقة.
+    """دورة محادثة واحدة. تنفذ أدوات القراءة تلقائيًا، وتتوقف عند أول Tool تحتاج موافقة.
 
     file_urls: مرفقات اختيارية (Excel/CSV/صور) تُحوَّل إلى كتل محتوى مع الرسالة.
     """
@@ -64,12 +64,44 @@ def run_turn(session_name, user_message, file_urls=None):
     messages = session.get_messages()
     tool_defs = tools.get_tool_definitions()
 
+    # تمرير نوع الطلب للنموذج بالـ System Prompt
+    rtype = session.request_type or "Other"
+    system = llm.SYSTEM_PROMPT.replace("{request_type}", rtype)
+
     for _ in range(MAX_ITERATIONS):
-        result = llm.chat(messages, tools=tool_defs)
+        result = llm.chat(messages, tools=tool_defs, system=system)
 
         if not result["tool_calls"]:
             session.append_message("assistant", result["text"])
             return {"type": "message", "text": result["text"]}
+
+        # التحقق من صحة كل استدعاء قبل أي تنفيذ أو طلب موافقة — يمنع أخطاء
+        # مثل معامل اخترعه النموذج ولا وجود له، ويتيح له تصحيح الاستدعاء
+        # ضمن نفس الدورة بدل أن يفشل بعد اعتماد المستخدم للعملية
+        invalid = {
+            c["id"]: tools.validate_call(c["name"], c.get("input") or {})
+            for c in result["tool_calls"]
+        }
+        invalid = {k: v for k, v in invalid.items() if v}
+
+        if invalid:
+            assistant_blocks = []
+            if result["text"]:
+                assistant_blocks.append({"type": "text", "text": result["text"]})
+            tool_results = []
+            for call in result["tool_calls"]:
+                assistant_blocks.append(
+                    {"type": "tool_use", "id": call["id"], "name": call["name"], "input": call["input"]}
+                )
+                err = invalid.get(call["id"])
+                content = err if err else "لم يُنفَّذ بعد — بانتظار تصحيح استدعاء آخر في نفس الرد"
+                tool_results.append(
+                    {"type": "tool_result", "tool_use_id": call["id"], "content": content}
+                )
+
+            messages.append({"role": "assistant", "content": assistant_blocks})
+            messages.append({"role": "user", "content": tool_results})
+            continue  # إعادة المحاولة بنفس الدورة بدل عرض خطأ للمستخدم
 
         # فحص الخطورة قبل أي تنفيذ
         pending = [c for c in result["tool_calls"] if needs_approval(tools.get_risk(c["name"]))]
@@ -211,13 +243,150 @@ def _mandatory_link_check(client, call):
     return "\n".join(lines)
 
 
+def _mandatory_duplicate_field_check(client, call):
+    """بوابة إلزامية: منع محاولة إنشاء Custom Field موجود فعلًا بدل فشل التنفيذ برسالة API خام."""
+    if call["name"] != "add_custom_field":
+        return None
+
+    args = call.get("input") or {}
+    dt = args.get("dt")
+    fieldname = args.get("fieldname")
+    if not dt or not fieldname:
+        return None
+
+    existing_name = f"{dt}-{fieldname}"
+    try:
+        client.get_doc("Custom Field", existing_name)
+    except Exception:
+        return None  # غير موجود — يُسمح بالإنشاء
+
+    return (
+        f"أُلغيت العملية قبل التنفيذ: يوجد حقل مخصص بالاسم «{fieldname}» في «{dt}» لدى هذا العميل مسبقًا "
+        f"({existing_name}). لتعديل قيمته استخدم update_document على Custom Field بهذا الاسم، أو اختر "
+        f"fieldname مختلفًا إن كان المطلوب حقلًا جديدًا فعلًا."
+    )
+
+
+# أدوات مرتبطة صراحة بنوع طلب معيّن — منعًا لخلط النطاقات داخل نفس المحادثة
+# (مثلًا: محادثة Client Script يُطلب فيها تعديل Print Format). الأدوات العامة
+# (create/update/delete_document وغيرها) تبقى متاحة دائمًا لأنها تُستخدم عبر كل الأنواع.
+TYPE_RESTRICTED_TOOLS = {
+    "patch_print_format_html": {"Print Format"},
+    "update_print_format": {"Print Format"},
+    "add_custom_field": {"Custom Field"},
+    "list_workspaces": {"Workspace", "Custom HTML Block"},
+    "get_workspace_content": {"Workspace", "Custom HTML Block"},
+    "add_workspace_shortcut": {"Workspace"},
+    "add_workspace_link": {"Workspace"},
+    "add_workspace_block": {"Workspace"},
+    "list_custom_blocks": {"Workspace", "Custom HTML Block"},
+    "copy_between_clients": {"Transfer from Templates"},
+    "create_bulk_deployment": {"Transfer from Templates"},
+    "capture_as_template": {"Transfer from Templates"},
+    "duplicate_within_client": {"Transfer from Templates"},
+    "search_templates": {"Transfer from Templates"},
+}
+
+
+def _mandatory_request_type_check(session_name, call):
+    allowed_types = TYPE_RESTRICTED_TOOLS.get(call["name"])
+    if not allowed_types:
+        return None
+    rtype = frappe.db.get_value("AI Session", session_name, "request_type")
+    if rtype in allowed_types:
+        return None
+    # "Transfer from Templates" و "Support Request" يحتاجون يوصلون لكل الأدوات بدون قيود
+    if rtype in ("Transfer from Templates", "Support Request"):
+        return None
+    return (
+        f"This request requires a new session: Tool «{call['name']}» is restricted to request type "
+        f"«{'، '.join(sorted(allowed_types))}»، and this session is of type «{rtype or 'Unspecified'}». "
+        f"Ask the user to start a new session with the appropriate request type."
+    )
+
+
+def _clean_api_error(raw):
+    """Extract a clean, readable error message from raw API error strings.
+
+    Handles: JSON exception bodies, Unicode escapes, _server_messages, stack traces.
+    Returns a short human-readable string.
+    """
+    if not raw:
+        return "Unknown error"
+    import re
+
+    # 1. Try to decode Unicode escapes (\u0644 → ل)
+    decoded = raw
+    if "\\u0" in raw:
+        try:
+            decoded = raw.encode("utf-8").decode("unicode_escape")
+        except Exception:
+            pass
+
+    # 2. Try to extract _server_messages (list of JSON strings)
+    sm_match = re.search(r'"_server_messages"\s*:\s*"(\[.+?\])"', decoded)
+    if sm_match:
+        try:
+            msgs = json.loads(sm_match.group(1).replace('\\"', '"'))
+            parts = []
+            for m in msgs:
+                try:
+                    parts.append(json.loads(m).get("message", m))
+                except Exception:
+                    parts.append(str(m))
+            if parts:
+                return " | ".join(parts)[:500]
+        except Exception:
+            pass
+
+    # 3. Try to extract exception message from JSON body
+    exc_match = re.search(r'"exception"\s*:\s*"([^"]+)"', decoded)
+    if exc_match:
+        msg = exc_match.group(1)
+        # Remove exception class prefix
+        msg = re.sub(r'^frappe\.exceptions\.\w+:\s*', '', msg)
+        # Remove \n and traceback noise
+        msg = msg.split("\\n")[0].strip()
+        if msg:
+            return msg[:500]
+
+    # 4. Try to find ValidationError/LinkValidationError message directly
+    val_match = re.search(r'(?:ValidationError|LinkValidationError):\s*(.+?)(?:\\n|$)', decoded)
+    if val_match:
+        return val_match.group(1).strip()[:500]
+
+    # 5. Try OperationalError
+    op_match = re.search(r'OperationalError.*?:\s*(.+?)(?:\\n|$)', decoded)
+    if op_match:
+        return op_match.group(1).strip()[:500]
+
+    # 6. Fallback: strip URLs and code noise, return first meaningful part
+    clean = re.sub(r'https?://[^\s,}"]+', '', decoded)
+    clean = re.sub(r'\\n', ' ', clean)
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    # Try to find the Arabic/English message part
+    msg_match = re.search(r'"message"\s*:\s*"([^"]+)"', clean)
+    if msg_match:
+        return msg_match.group(1)[:500]
+
+    return clean[:500] if clean else "Unknown error"
+
+
 def _execute_call(client, client_site, session_name, task_name, call):
     start = time.time()
     risk = tools.get_risk(call["name"])
     before = None
 
-    # بوابات إلزامية: الحقول الإجبارية أولًا، ثم صحة حقول الربط
-    blocked = _mandatory_required_check(client, call) or _mandatory_link_check(client, call)
+    # طبقة دفاع ثانية: التحقق من صحة المعاملات مرة أخرى فور التنفيذ الفعلي
+    # (مثلًا عند تنفيذ مهمة اعتُمدت سابقًا)، ثم البوابات الإلزامية المعتادة
+    invalid = tools.validate_call(call["name"], call.get("input") or {})
+    blocked = (
+        invalid
+        or _mandatory_required_check(client, call)
+        or _mandatory_link_check(client, call)
+        or _mandatory_duplicate_field_check(client, call)
+        or _mandatory_request_type_check(session_name, call)
+    )
     if blocked:
         log_action(
             client_site=client_site,
@@ -236,7 +405,7 @@ def _execute_call(client, client_site, session_name, task_name, call):
 
     # لقطة قبل التعديل للعمليات القابلة للاسترجاع
     args = call.get("input") or {}
-    if call["name"] in ("update_document", "update_print_format", "submit_document", "cancel_document", "delete_document"):
+    if call["name"] in ("update_document", "update_print_format", "patch_print_format_html", "patch_document_field", "submit_document", "cancel_document", "delete_document"):
         try:
             dt = args.get("doctype") or "Print Format"
             nm = args.get("name")
@@ -249,7 +418,9 @@ def _execute_call(client, client_site, session_name, task_name, call):
         output = tools.run_tool(client, call["name"], args)
         success, error = 1, None
     except Exception as e:
-        output, success, error = None, 0, str(e)[:1000]
+        raw_error = str(e)[:2000]
+        error = _clean_api_error(raw_error)
+        output, success = {"error": error}, 0
 
     log_action(
         client_site=client_site,
@@ -304,7 +475,14 @@ def execute_task(task_name):
     task.db_set("verification_result", _dump(verification))
     task.db_set("status", "Failed" if failed else "Completed")
     if failed:
-        task.db_set("error_message", (error_text or "فشل غير محدد")[:1000])
+        task.db_set("error_message", (error_text or "Unspecified failure")[:1000])
+
+    # Store chat_output — the same JSON the chat bot shows to the user
+    try:
+        chat_out = json.dumps(verification, ensure_ascii=False, indent=2)[:20000]
+        task.db_set("chat_output", chat_out)
+    except Exception:
+        pass
 
     frappe.db.commit()
     return {

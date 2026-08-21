@@ -408,8 +408,10 @@ class RemoteImportPage {
         try {
             const resp = await frappe.call({ method: "frappe.client.insert", args: { doc: doc_data } });
             this.import_doc = resp.message;
-            await frappe.call({ method: "mubtkir_ai_creator.api.importer.start_import", args: { import_name: this.import_doc.name } });
+            // Show progress page immediately — don't wait for import to start
             this.next_step();
+            // Fire start_import without awaiting — polling/realtime will track progress
+            frappe.call({ method: "mubtkir_ai_creator.api.importer.start_import", args: { import_name: this.import_doc.name } });
         } catch (e) {
             frappe.msgprint({ title: "Error", message: e.message || "Failed to start import", indicator: "red" });
         }
@@ -539,24 +541,41 @@ class RemoteImportPage {
     _extract_error_message(raw) {
         // Extract readable error from raw API error string
         if (!raw) return "Unknown error";
+        const translations = {
+            '1292': 'Incorrect date/time/number format — check field type',
+            '1062': 'Duplicate entry — record already exists',
+            '1048': 'Required field is empty (NOT NULL)',
+            '1452': 'Invalid link — referenced record not found',
+            '1406': 'Value too long for field',
+            '1264': 'Value out of range for field',
+            '1054': 'Unknown column — field does not exist',
+            '1146': 'Table does not exist — DocType may not be installed',
+        };
         try {
-            // Try to find exception message in JSON
-            const jsonMatch = raw.match(/\{"exception":\s*"([^"]+)"/);
-            if (jsonMatch) {
-                let msg = jsonMatch[1];
-                // Clean up the exception prefix
-                msg = msg.replace(/^frappe\.exceptions\.\w+:\s*/, "");
-                return msg;
-            }
-            // Try _server_messages
+            // Try _server_messages first
             const smMatch = raw.match(/"message":\s*"([^"]+)"/);
             if (smMatch) return smMatch[1];
-            // Try to decode unicode escapes
+            // ValidationError / LinkValidationError
+            let m = raw.match(/(?:Validation|LinkValidation)Error:\s*(.+?)(?:\\n|",|$)/);
+            if (m) return m[1].trim();
+            // OperationalError — match even truncated
+            m = raw.match(/OperationalError[:\s]*\((\d+)/);
+            if (m) {
+                const code = m[1];
+                const valMatch = raw.match(/'([^']{1,80})'/);
+                const detail = valMatch ? ' (value: ' + valMatch[1] + ')' : '';
+                return (translations[code] || 'Database error (' + code + ')') + detail;
+            }
+            // Generic exception
+            const jsonMatch = raw.match(/\{"exception":\s*"([^"]+)"/);
+            if (jsonMatch) {
+                return jsonMatch[1].replace(/^[\w.]+Exception:\s*/, "");
+            }
+            // Unicode escape decode
             if (raw.includes("\\u0")) {
                 try { return JSON.parse('"' + raw.replace(/"/g, '\\"') + '"'); } catch(e) {}
             }
         } catch (e) { /* fall through */ }
-        // Fallback: clean up common noise
         return raw.replace(/https?:\/\/[^\s]+/g, "").replace(/\\n/g, " ").replace(/\\"/g, '"').substring(0, 300);
     }
 

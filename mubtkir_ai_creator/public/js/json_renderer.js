@@ -141,29 +141,35 @@ function _renderArray(data, opts) {
 // ─── Error message extractor ───
 function _extractErr(raw) {
     if (!raw) return 'Unknown error';
+    var translations = {
+        '1292': 'Incorrect date/time/number format — check field type',
+        '1062': 'Duplicate entry — record already exists',
+        '1048': 'Required field is empty (NOT NULL)',
+        '1452': 'Invalid link — referenced record not found',
+        '1406': 'Value too long for field',
+        '1264': 'Value out of range for field',
+        '1054': 'Unknown column — field does not exist',
+        '1146': 'Table does not exist — DocType may not be installed',
+    };
     try {
         // Decode unicode escapes first
-        let decoded = raw;
+        var decoded = raw;
         if (raw.includes('\\u0')) { try { decoded = JSON.parse('"' + raw.replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"'); } catch(e) {} }
         // _server_messages
-        let m = decoded.match(/"message"\s*:\s*"([^"]+)"/);
+        var m = decoded.match(/"message"\s*:\s*"([^"]+)"/);
         if (m) return m[1];
-        // ValidationError
-        m = decoded.match(/ValidationError:\s*(.+?)(?:\\n|",|$)/);
+        // ValidationError / LinkValidationError
+        m = decoded.match(/(?:Validation|LinkValidation)Error:\s*(.+?)(?:\\n|",|$)/);
         if (m) return m[1].trim();
-        // OperationalError — translate common codes
-        m = decoded.match(/OperationalError.*?\((\d+),.*?"(.+?)"/);
+        // OperationalError — match even truncated errors like "OperationalError: (1292, \"
+        m = decoded.match(/OperationalError[:\s]*\((\d+)/);
         if (m) {
-            const code = m[1], detail = m[2];
-            if (code === '1292') return 'Incorrect date/time format — expected YYYY-MM-DD';
-            if (code === '1062') return 'Duplicate entry — record already exists';
-            if (code === '1048') return 'Required field is empty (NOT NULL)';
-            if (code === '1452') return 'Invalid link reference — linked record not found';
-            return `Database error (${code}): ${detail}`;
+            var code = m[1];
+            // Try to extract the problematic value
+            var valMatch = decoded.match(/'([^']{1,80})'/);
+            var detail = valMatch ? ' (value: ' + valMatch[1] + ')' : '';
+            return (translations[code] || 'Database error (' + code + ')') + detail;
         }
-        // LinkValidationError
-        m = decoded.match(/LinkValidationError:\s*(.+?)(?:\\n|",|$)/);
-        if (m) return m[1].trim();
         // Generic exception
         m = decoded.match(/"exception"\s*:\s*"[^:]+:\s*(.+?)(?:\\n|",|$)/);
         if (m) return m[1].trim();

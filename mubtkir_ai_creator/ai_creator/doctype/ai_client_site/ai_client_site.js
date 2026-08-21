@@ -35,22 +35,38 @@ frappe.ui.form.on('AI Client Site', {
 					  reqd: 1, default: 'Print Format' },
 					{ fieldname: 'target_doctype', label: 'Filter by DocType (optional)', fieldtype: 'Data' },
 					{ fieldname: 'load', label: 'Browse Available', fieldtype: 'Button' },
-					{ fieldname: 'capture_selected', label: 'Capture Selected', fieldtype: 'Button', hidden: 1 },
 					{ fieldname: 'results', fieldtype: 'HTML' },
 				],
 			});
 
 			let selectedNames = new Set();
 
+			function doCapture() {
+				const names = Array.from(selectedNames);
+				if (!names.length) { frappe.msgprint('Select at least one item'); return; }
+				frappe.confirm('Capture ' + names.length + ' item(s) into one template?', function () {
+					frappe.dom.freeze('Capturing...');
+					frappe.call({
+						method: 'mubtkir_ai_creator.lib.templates.run_capture_batch',
+						args: { client_site: frm.doc.name, artifact_type: d.get_value('artifact_type'), source_names: JSON.stringify(names) },
+						callback: function (r) {
+							frappe.dom.unfreeze();
+							const m = r.message || {};
+							frappe.show_alert({ message: 'Captured ' + (m.count || names.length) + ' items → ' + (m.template || ''), indicator: 'green' }, 6);
+							d.hide();
+						},
+						error: function () { frappe.dom.unfreeze(); },
+					});
+				});
+			}
+
 			function renderResults(rows) {
 				selectedNames.clear();
 				const $w = d.fields_dict.results.$wrapper;
 				if (!rows.length) {
 					$w.html('<div class="text-muted" style="padding:12px">No items found</div>');
-					d.set_df_property('capture_selected', 'hidden', 1);
 					return;
 				}
-				d.set_df_property('capture_selected', 'hidden', 0);
 				const $list = $('<div style="max-height:350px;overflow:auto"></div>');
 
 				// Select All header
@@ -73,11 +89,17 @@ frappe.ui.form.on('AI Client Site', {
 					});
 					$list.append($item);
 				});
-				$w.empty().append($list);
+
+				// Capture button rendered as HTML (avoids Frappe Button field re-render issues)
+				const $btn = $('<div style="padding:12px 0"><button class="btn btn-primary btn-sm ri-capture-btn">Capture Selected</button></div>');
+				$btn.find('.ri-capture-btn').on('click', doCapture);
+
+				$w.empty().append($list).append($btn);
 			}
 
 			function _upd() {
-				d.set_df_property('capture_selected', 'label', selectedNames.size ? 'Capture Selected (' + selectedNames.size + ')' : 'Capture Selected');
+				const $btn = d.$wrapper.find('.ri-capture-btn');
+				$btn.text(selectedNames.size ? 'Capture Selected (' + selectedNames.size + ')' : 'Capture Selected');
 			}
 
 			d.show();
@@ -88,25 +110,6 @@ frappe.ui.form.on('AI Client Site', {
 					args: { client_site: frm.doc.name, artifact_type: d.get_value('artifact_type'), target_doctype: d.get_value('target_doctype') || null },
 					freeze: true,
 					callback: function (r) { renderResults(r.message || []); },
-				});
-			});
-
-			d.fields_dict.capture_selected.$input.off('click').on('click', function () {
-				const names = Array.from(selectedNames);
-				if (!names.length) { frappe.msgprint('Select at least one item'); return; }
-				frappe.confirm('Capture ' + names.length + ' item(s) into one template?', function () {
-					frappe.dom.freeze('Capturing...');
-					frappe.call({
-						method: 'mubtkir_ai_creator.lib.templates.run_capture_batch',
-						args: { client_site: frm.doc.name, artifact_type: d.get_value('artifact_type'), source_names: JSON.stringify(names) },
-						callback: function (r) {
-							frappe.dom.unfreeze();
-							const m = r.message || {};
-							frappe.show_alert({ message: 'Captured ' + (m.count || names.length) + ' items → ' + (m.template || ''), indicator: 'green' }, 6);
-							d.hide();
-						},
-						error: function () { frappe.dom.unfreeze(); },
-					});
 				});
 			});
 		}, 'Templates');

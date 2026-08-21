@@ -4,11 +4,11 @@ frappe.ui.form.on('AI Deployment', {
 		if (frm.is_new()) return;
 
 		// Render JSON fields as readable UI
-		if (window.mubtkir && mubtkir.renderJsonField) {
+		_withRenderer(function() {
 			mubtkir.renderJsonField(frm, 'resolved_payload', { type: 'key_value' });
 			mubtkir.renderJsonField(frm, 'manual_payload', { type: 'key_value' });
 			mubtkir.renderJsonField(frm, 'preview_summary', { type: 'key_value' });
-		}
+		});
 
 		var st = frm.doc.status;
 
@@ -30,11 +30,11 @@ frappe.ui.form.on('AI Deployment', {
 					callback: function (r) {
 						var rows = r.message || [];
 						if (!rows.length) {
-							d.fields_dict.results.$wrapper.html('<div >لا توجد عناصر من هذا النوع</div>');
+							d.fields_dict.results.$wrapper.html('<div>لا توجد عناصر من هذا النوع</div>');
 							d.show();
 							return;
 						}
-						var $list = $('<div  style="max-height:320px;overflow:auto;"></div>');
+						var $list = $('<div style="max-height:320px;overflow:auto;"></div>');
 						rows.forEach(function (row) {
 							var $item = $('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);"><span>' + frappe.utils.escape_html(row.name) + '</span><button class="btn btn-xs btn-default">تحديد</button></div>');
 							$item.find('button').on('click', function () {
@@ -71,7 +71,7 @@ frappe.ui.form.on('AI Deployment', {
 			}, __('Targets'));
 		}
 
-		// ===== Check Compatibility =====
+		// ===== Actions dropdown: Check Compatibility + Approve & Execute =====
 		if (['Draft', 'Previewed', 'Pending Approval'].includes(st)) {
 			frm.add_custom_button(__('Check Compatibility'), function () {
 				frappe.dom.freeze(__('جارٍ فحص كل عميل...'));
@@ -84,16 +84,13 @@ frappe.ui.form.on('AI Deployment', {
 						frappe.msgprint({
 							title: __('نتيجة المعاينة'),
 							indicator: 'blue',
-							message: '<div ><b>' + frappe.utils.escape_html((r.message || {}).summary || '') + '</b><br><br>Review Targets table for details before approval.</div>',
+							message: '<div><b>' + frappe.utils.escape_html((r.message || {}).summary || '') + '</b><br><br>Review Targets table for details before approval.</div>',
 						});
 					},
 					error: function () { frappe.dom.unfreeze(); },
 				});
-			}).addClass('btn-primary');
-		}
+			}, __('Actions'));
 
-		// ===== Approve & Execute =====
-		if (st === 'Pending Approval') {
 			frm.add_custom_button(__('Approve & Execute'), function () {
 				var bad = 0, warn = 0;
 				(frm.doc.targets || []).forEach(function (t) {
@@ -121,7 +118,7 @@ frappe.ui.form.on('AI Deployment', {
 						});
 					}
 				);
-			}).addClass('btn-danger');
+			}, __('Actions'));
 		}
 
 		// ===== Copy Results Report =====
@@ -177,7 +174,6 @@ function setup_doctype_suggestions(frm) {
 		async: false,
 		callback: function (r) {
 			var list = r.message || [];
-			// target_doctype — حقل Data عادي + awesomplete للاقتراحات
 			var $input = frm.fields_dict.target_doctype && frm.fields_dict.target_doctype.$input;
 			if ($input && $input.length) {
 				if ($input[0]._awesomplete) {
@@ -190,4 +186,13 @@ function setup_doctype_suggestions(frm) {
 			}
 		},
 	});
+}
+
+function _withRenderer(fn) {
+	if (window.mubtkir && mubtkir.renderJsonField) { fn(); return; }
+	var tries = 0;
+	var iv = setInterval(function() {
+		if (window.mubtkir && mubtkir.renderJsonField) { clearInterval(iv); fn(); }
+		if (++tries > 30) clearInterval(iv);
+	}, 100);
 }

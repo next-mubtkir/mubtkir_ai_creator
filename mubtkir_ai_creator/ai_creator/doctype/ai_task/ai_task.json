@@ -27,7 +27,9 @@
   "result_section",
   "execution_result",
   "verification_result",
-  "error_message"
+  "error_message",
+  "chat_section",
+  "chat_output"
  ],
  "fields": [
   {
@@ -173,6 +175,19 @@
    "fieldtype": "Small Text",
    "label": "Error",
    "read_only": 1
+  },
+  {
+   "fieldname": "chat_section",
+   "fieldtype": "Section Break",
+   "label": "Chat Output"
+  },
+  {
+   "fieldname": "chat_output",
+   "fieldtype": "Code",
+   "label": "Chat Output",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "The exact JSON response shown in the chat conversation"
   }
  ],
  "links": [

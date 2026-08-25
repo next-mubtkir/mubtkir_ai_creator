@@ -1,13 +1,13 @@
 frappe.ui.form.on('AI Action Log', {
 	refresh: function (frm) {
-		// Render JSON fields as readable UI (with retry if renderer not loaded yet)
-		_withRenderer(function() {
+		// Render JSON fields as readable UI
+		if (window.mubtkir && mubtkir.renderJsonField) {
 			mubtkir.renderJsonField(frm, 'tool_input', { type: 'key_value' });
 			mubtkir.renderJsonField(frm, 'tool_output', { type: 'key_value' });
 			mubtkir.renderJsonField(frm, 'value_before', { type: 'key_value' });
 			mubtkir.renderJsonField(frm, 'value_after', { type: 'key_value' });
 			mubtkir.renderJsonField(frm, 'verification_result', { type: 'key_value' });
-		});
+		}
 
 		// Show error as readable headline
 		if (frm.doc.error_message) {
@@ -73,12 +73,3 @@ frappe.ui.form.on('AI Action Log', {
 		}).addClass('btn-primary');
 	},
 });
-
-function _withRenderer(fn) {
-	if (window.mubtkir && mubtkir.renderJsonField) { fn(); return; }
-	var tries = 0;
-	var iv = setInterval(function() {
-		if (window.mubtkir && mubtkir.renderJsonField) { clearInterval(iv); fn(); }
-		if (++tries > 30) clearInterval(iv);
-	}, 100);
-}

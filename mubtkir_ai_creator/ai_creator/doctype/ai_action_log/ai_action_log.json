@@ -1,11 +1,10 @@
 {
  "actions": [],
- "autoname": "naming_series:LOG-.YY.-.MM.-.####",
+ "autoname": "format:LOG-{YY}-{MM}-{####}",
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
   "timestamp",
   "log_user",
   "column_break_1",
@@ -31,17 +30,6 @@
   "verification_result"
  ],
  "fields": [
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "LOG-.YY.-.MM.-.####",
-   "default": "LOG-.YY.-.MM.-.####",
-   "hidden": 1,
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
-  },
   {
    "fieldname": "timestamp",
    "fieldtype": "Datetime",
@@ -192,7 +180,8 @@
    "role": "System Manager",
    "share": 1,
    "report": 1,
-   "export": 1
+   "export": 1,
+   "delete": 1
   },
   {
    "read": 1,
@@ -205,5 +194,5 @@
  ],
  "sort_field": "timestamp",
  "sort_order": "DESC",
- "naming_rule": "By \"Naming Series\" field"
+ "allow_delete": 1
 }

@@ -1,11 +1,10 @@
 {
  "actions": [],
- "autoname": "naming_series:IMP-.YY.-.MM.-.####",
+ "autoname": "format:IMP-{YY}-{MM}-{####}",
  "creation": "2026-08-18 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
   "client_site",
   "remote_doctype",
   "import_type",
@@ -53,17 +52,6 @@
   "is_resumable"
  ],
  "fields": [
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "IMP-.YY.-.MM.-.####",
-   "default": "IMP-.YY.-.MM.-.####",
-   "hidden": 1,
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
-  },
   {
    "fieldname": "client_site",
    "fieldtype": "Link",
@@ -251,7 +239,7 @@
   {
    "fieldname": "column_mapping",
    "fieldtype": "Code",
-   "label": "Column Mapping",
+   "label": "Column Mapping (JSON)",
    "options": "JSON"
   },
   {
@@ -327,7 +315,7 @@
   {
    "fieldname": "error_log",
    "fieldtype": "Code",
-   "label": "Error Details",
+   "label": "Error Details (JSON)",
    "options": "JSON",
    "read_only": 1
   },
@@ -363,7 +351,7 @@
  "modified_by": "Administrator",
  "module": "AI Creator",
  "name": "AI Remote Import",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

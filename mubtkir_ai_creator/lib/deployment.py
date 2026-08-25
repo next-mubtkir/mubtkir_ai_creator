@@ -60,7 +60,7 @@ def build_payload(dep):
     if dep.deployment_type in DENYLIST_TYPES:
         frappe.throw(f"نوع نشر غير مسموح: {dep.deployment_type}")
 
-    if dep.source_mode == "From Template":
+    if dep.source_mode == "من قالب":
         if not dep.source_template:
             frappe.throw("حدد القالب")
         tpl = frappe.get_doc("AI Template", dep.source_template)
@@ -71,7 +71,7 @@ def build_payload(dep):
         payload = json.loads(tpl.payload or "{}")
         return {k: v for k, v in payload.items() if k not in STRIP_FIELDS}
 
-    if dep.source_mode == "Manual":
+    if dep.source_mode == "تعريف يدوي":
         try:
             payload = json.loads(dep.manual_payload or "{}")
         except ValueError as e:
@@ -80,7 +80,7 @@ def build_payload(dep):
             frappe.throw("التعريف اليدوي فارغ أو غير صالح")
         return {k: v for k, v in payload.items() if k not in STRIP_FIELDS}
 
-    # Copy from Client
+    # نسخ من عميل قائم
     if not dep.source_client or not dep.source_record:
         frappe.throw("حدد العميل المصدر واسم العنصر")
 
@@ -140,9 +140,9 @@ def preview(name):
         row.db_set("result", None)
 
     summary = (
-        f"Compatible: {counts.get('Compatible', 0)} | "
-        f"Warning: {counts.get('Warning', 0)} | "
-        f"غير Compatible: {counts.get('Incompatible', 0)}"
+        f"متوافق: {counts.get('Compatible', 0)} | "
+        f"تحذير: {counts.get('Warning', 0)} | "
+        f"غير متوافق: {counts.get('Incompatible', 0)}"
     )
     dep.db_set("preview_summary", summary)
     dep.db_set("status", "Pending Approval")
@@ -191,14 +191,14 @@ def _check_target(dep, payload, client):
                 return "Warning", f"حقول غير موجودة لدى هذا العميل وستُتجاهل: {'، '.join(unknown[:10])}"
         except Exception as e:
             return "Incompatible", f"تعذّر قراءة تعريف الإعدادات: {str(e)[:200]}"
-        return "Compatible", "Settings will be updated"
+        return "Compatible", "سيتم تحديث الإعدادات"
 
     if exists and not dep.overwrite_existing:
         return "Warning", f"«{target_name}» موجود مسبقًا وسيُتخطّى (فعّل الاستبدال لتجاوز ذلك)"
     if exists and dep.overwrite_existing:
         return "Warning", f"«{target_name}» موجود مسبقًا وسيُستبدل"
 
-    return "Compatible", "Will be created new"
+    return "Compatible", "سيُنشأ جديدًا"
 
 
 # ---------------- التنفيذ ----------------

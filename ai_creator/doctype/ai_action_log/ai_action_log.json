@@ -1,11 +1,10 @@
 {
  "actions": [],
- "autoname": "naming_series:LOG-.YY.-.MM.-.####",
+ "autoname": "format:LOG-{YY}{MM}-{######}",
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
   "timestamp",
   "log_user",
   "column_break_1",
@@ -32,27 +31,16 @@
  ],
  "fields": [
   {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "LOG-.YY.-.MM.-.####",
-   "default": "LOG-.YY.-.MM.-.####",
-   "hidden": 1,
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
-  },
-  {
    "fieldname": "timestamp",
    "fieldtype": "Datetime",
-   "label": "Timestamp",
+   "label": "الوقت",
    "read_only": 1,
    "in_list_view": 1
   },
   {
    "fieldname": "log_user",
    "fieldtype": "Link",
-   "label": "Employee",
+   "label": "الموظف",
    "options": "User",
    "read_only": 1
   },
@@ -63,7 +51,7 @@
   {
    "fieldname": "client_site",
    "fieldtype": "Link",
-   "label": "Client",
+   "label": "العميل",
    "options": "AI Client Site",
    "read_only": 1,
    "in_list_view": 1
@@ -71,7 +59,7 @@
   {
    "fieldname": "site_url",
    "fieldtype": "Data",
-   "label": "Site URL",
+   "label": "الموقع",
    "read_only": 1
   },
   {
@@ -81,14 +69,14 @@
   {
    "fieldname": "session",
    "fieldtype": "Link",
-   "label": "Session",
+   "label": "الجلسة",
    "options": "AI Session",
    "read_only": 1
   },
   {
    "fieldname": "task",
    "fieldtype": "Link",
-   "label": "Task",
+   "label": "المهمة",
    "options": "AI Task",
    "read_only": 1
   },
@@ -99,32 +87,32 @@
   {
    "fieldname": "tool_name",
    "fieldtype": "Data",
-   "label": "Tool",
+   "label": "الأداة",
    "read_only": 1,
    "in_list_view": 1
   },
   {
    "fieldname": "risk_level",
    "fieldtype": "Data",
-   "label": "Risk Level",
+   "label": "مستوى الخطورة",
    "read_only": 1
   },
   {
    "fieldname": "data_section",
    "fieldtype": "Section Break",
-   "label": "Data"
+   "label": "البيانات"
   },
   {
    "fieldname": "tool_input",
    "fieldtype": "Code",
-   "label": "Tool Input",
+   "label": "المدخلات",
    "options": "JSON",
    "read_only": 1
   },
   {
    "fieldname": "tool_output",
    "fieldtype": "Code",
-   "label": "API Response",
+   "label": "استجابة API",
    "options": "JSON",
    "read_only": 1
   },
@@ -135,14 +123,14 @@
   {
    "fieldname": "value_before",
    "fieldtype": "Code",
-   "label": "Value Before",
+   "label": "القيم قبل",
    "options": "JSON",
    "read_only": 1
   },
   {
    "fieldname": "value_after",
    "fieldtype": "Code",
-   "label": "Value After",
+   "label": "القيم بعد",
    "options": "JSON",
    "read_only": 1
   },
@@ -153,14 +141,14 @@
   {
    "fieldname": "is_success",
    "fieldtype": "Check",
-   "label": "Succeeded",
+   "label": "نجحت",
    "read_only": 1,
    "in_list_view": 1
   },
   {
    "fieldname": "duration_ms",
    "fieldtype": "Int",
-   "label": "Duration (ms)",
+   "label": "المدة (ms)",
    "read_only": 1
   },
   {
@@ -170,13 +158,13 @@
   {
    "fieldname": "error_message",
    "fieldtype": "Small Text",
-   "label": "Error",
+   "label": "الخطأ",
    "read_only": 1
   },
   {
    "fieldname": "verification_result",
    "fieldtype": "Code",
-   "label": "Verification Result",
+   "label": "نتيجة التحقق",
    "options": "JSON",
    "read_only": 1
   }
@@ -192,7 +180,8 @@
    "role": "System Manager",
    "share": 1,
    "report": 1,
-   "export": 1
+   "export": 1,
+   "delete": 1
   },
   {
    "read": 1,
@@ -205,5 +194,5 @@
  ],
  "sort_field": "timestamp",
  "sort_order": "DESC",
- "naming_rule": "By \"Naming Series\" field"
+ "allow_delete": 1
 }

@@ -1,11 +1,10 @@
 {
  "actions": [],
- "autoname": "naming_series:SES-.YY.-.MM.-.####",
+ "autoname": "format:SES-{YY}-{MM}-{####}",
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
   "client_site",
   "column_break_1",
   "session_user",
@@ -19,17 +18,6 @@
   "pinned_message"
  ],
  "fields": [
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "SES-.YY.-.MM.-.####",
-   "default": "SES-.YY.-.MM.-.####",
-   "hidden": 1,
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
-  },
   {
    "fieldname": "client_site",
    "fieldtype": "Link",
@@ -80,7 +68,7 @@
   {
    "fieldname": "messages",
    "fieldtype": "Long Text",
-   "label": "Conversation Log",
+   "label": "Conversation Log (JSON)",
    "read_only": 1
   },
   {
@@ -125,6 +113,5 @@
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
- "title_field": "title",
- "naming_rule": "By \"Naming Series\" field"
+ "title_field": "title"
 }

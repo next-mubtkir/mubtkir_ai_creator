@@ -182,6 +182,13 @@ class RemoteImportPage {
                     </div>
                 </div>
                 <div id="ri-file-info" style="margin-top:12px"></div>
+                <div style="margin:20px 0 8px;text-align:center;color:var(--text-muted);font-size:13px">— or —</div>
+                <div class="ri-panel-title" style="font-size:13px">Google Sheet URL</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <input type="text" id="ri-gsheet-url" class="form-control input-sm" placeholder="https://docs.google.com/spreadsheets/d/..." style="flex:1">
+                    <button class="btn btn-xs btn-default" id="ri-btn-load-gsheet">Load</button>
+                </div>
+                <div id="ri-gsheet-info" style="margin-top:8px"></div>
                 <div style="margin-top:16px;text-align:center">
                     <button class="btn btn-xs btn-default" id="ri-btn-download-template">⬇ Download Import Template</button>
                 </div>
@@ -211,6 +218,34 @@ class RemoteImportPage {
         container.find("#ri-btn-download-template").on("click", () => {
             window.open(`/api/method/mubtkir_ai_creator.api.importer.download_template?client_site=${encodeURIComponent(this.client_site)}&doctype=${encodeURIComponent(this.remote_doctype)}`);
         });
+        container.find("#ri-btn-load-gsheet").on("click", () => {
+            const url = container.find("#ri-gsheet-url").val();
+            if (!url || !url.includes("docs.google.com/spreadsheets")) {
+                frappe.msgprint("Please enter a valid Google Sheet URL");
+                return;
+            }
+            const info = container.find("#ri-gsheet-info");
+            info.html(`<span class="text-muted">Loading Google Sheet...</span>`);
+            frappe.call({
+                method: "mubtkir_ai_creator.api.importer.preview_google_sheet",
+                args: { url: url, limit: 5 },
+                callback: (r) => {
+                    const d = r.message;
+                    this.file_url = "__google_sheet__";
+                    this.file_name = d.file_name;
+                    this.google_sheet_url = url;
+                    this.file_data = d;
+                    container.find("#ri-drop-zone").addClass("has-file").html(`
+                        <div style="font-size:36px;margin-bottom:8px">✅</div>
+                        <div style="font-weight:600">${frappe.utils.escape_html(d.file_name)}</div>
+                        <div style="font-size:12px;color:var(--text-muted)">Google Sheet — ${d.total_rows} rows</div>
+                    `);
+                    info.html(`<span class="text-success">✓ Loaded ${d.total_rows} rows</span>`);
+                    container.find("#ri-btn-next-2").prop("disabled", false);
+                },
+                error: () => { info.html(`<span class="text-danger">Failed to load — make sure the sheet is public</span>`); },
+            });
+        });
         container.find("#ri-btn-prev-2").on("click", () => this.prev_step());
         container.find("#ri-btn-next-2").on("click", () => {
             if (!this.file_url) { frappe.msgprint("Please upload a file first"); return; }
@@ -221,8 +256,11 @@ class RemoteImportPage {
     async load_metadata_and_preview() {
         const meta_resp = await frappe.call({ method: "mubtkir_ai_creator.api.importer.get_doctype_meta", args: { client_site: this.client_site, doctype: this.remote_doctype } });
         this.meta = meta_resp.message;
-        const preview_resp = await frappe.call({ method: "mubtkir_ai_creator.api.importer.preview_file", args: { file_url: this.file_url, limit: 5 } });
-        this.file_data = preview_resp.message;
+        // For Google Sheets, file_data is already loaded in the upload step
+        if (this.file_url !== "__google_sheet__") {
+            const preview_resp = await frappe.call({ method: "mubtkir_ai_creator.api.importer.preview_file", args: { file_url: this.file_url, limit: 5 } });
+            this.file_data = preview_resp.message;
+        }
         const map_resp = await frappe.call({ method: "mubtkir_ai_creator.api.importer.auto_map", args: { client_site: this.client_site, doctype: this.remote_doctype, file_columns: JSON.stringify(this.file_data.headers) } });
         this.mapping = map_resp.message || {};
     }
@@ -284,7 +322,13 @@ class RemoteImportPage {
         container.find("#ri-btn-save-mapping").on("click", () => this.save_mapping_dialog());
         container.find("#ri-btn-load-mapping").on("click", () => this.load_mapping_dialog());
         container.find("#ri-btn-prev-3").on("click", () => this.prev_step());
-        container.find("#ri-btn-next-3").on("click", () => this.next_step());
+        container.find("#ri-btn-next-3").on("click", () => {
+            if (this._has_unmapped_required) {
+                frappe.msgprint({ title: "Cannot proceed", message: "Please map all required fields before continuing", indicator: "red" });
+                return;
+            }
+            this.next_step();
+        });
         this.check_unmapped(container);
     }
 
@@ -295,9 +339,11 @@ class RemoteImportPage {
             callback: (r) => {
                 const unmapped = r.message || [];
                 const w = container.find("#ri-unmapped-warning");
+                this._has_unmapped_required = unmapped.length > 0;
+                container.find("#ri-btn-next-3").prop("disabled", this._has_unmapped_required);
                 if (unmapped.length) {
                     const fields = unmapped.map(f => f.label || f.fieldname).join(", ");
-                    w.html(`<div class="text-warning" style="font-size:13px">⚠ Unmapped required fields: ${fields}</div>`);
+                    w.html(`<div class="text-danger" style="font-size:13px">⚠ Unmapped required fields: ${fields}</div>`);
                 } else {
                     w.html(`<div class="text-success" style="font-size:13px">✓ All required fields are mapped</div>`);
                 }
@@ -398,20 +444,21 @@ class RemoteImportPage {
 
     async create_and_start_import() {
         const batch_size = parseInt($("#ri-batch-size").val()) || 200;
+        const is_gsheet = this.file_url === "__google_sheet__";
         const doc_data = {
             doctype: "AI Remote Import", client_site: this.client_site, remote_doctype: this.remote_doctype,
-            import_type: this.import_type || "Insert", source_file: this.file_url,
-            source_file_name: this.file_url ? this.file_url.split("/").pop() : "",
+            import_type: this.import_type || "Insert",
+            source_file: is_gsheet ? "" : this.file_url,
+            source_file_name: is_gsheet ? this.file_name : (this.file_url ? this.file_url.split("/").pop() : ""),
+            google_sheet_url: is_gsheet ? this.google_sheet_url : "",
             column_mapping: JSON.stringify(this.mapping), batch_size, total_rows: this.file_data.total_rows,
             ...this.import_options,
         };
         try {
             const resp = await frappe.call({ method: "frappe.client.insert", args: { doc: doc_data } });
             this.import_doc = resp.message;
-            // Show progress page immediately — don't wait for import to start
+            await frappe.call({ method: "mubtkir_ai_creator.api.importer.start_import", args: { import_name: this.import_doc.name } });
             this.next_step();
-            // Fire start_import without awaiting — polling/realtime will track progress
-            frappe.call({ method: "mubtkir_ai_creator.api.importer.start_import", args: { import_name: this.import_doc.name } });
         } catch (e) {
             frappe.msgprint({ title: "Error", message: e.message || "Failed to start import", indicator: "red" });
         }
@@ -446,7 +493,7 @@ class RemoteImportPage {
             </div>
         `);
         container.find("#ri-btn-cancel-import").on("click", () => this.cancel_import());
-        container.find("#ri-btn-new-import").on("click", () => { this.current_step=0; this.import_doc=null; this.render(); });
+        container.find("#ri-btn-new-import").on("click", () => { this.current_step=0; this.import_doc=null; this.meta=null; this.file_data=null; this.file_url=null; this.file_name=null; this.mapping={}; this.render(); });
         container.find("#ri-btn-retry").on("click", () => this.retry_import());
         container.find("#ri-btn-resume").on("click", () => this.resume_import());
         this.start_progress_polling();
@@ -541,43 +588,24 @@ class RemoteImportPage {
     _extract_error_message(raw) {
         // Extract readable error from raw API error string
         if (!raw) return "Unknown error";
-        const translations = {
-            '1292': 'Incorrect date/time/number format — check field type',
-            '1062': 'Duplicate entry — record already exists',
-            '1048': 'Required field is empty (NOT NULL)',
-            '1452': 'Invalid link — referenced record not found',
-            '1406': 'Value too long for field',
-            '1264': 'Value out of range for field',
-            '1054': 'Unknown column — field does not exist',
-            '1146': 'Table does not exist — DocType may not be installed',
-        };
         try {
-            // Try _server_messages first
-            const smMatch = raw.match(/"message":\s*"([^"]+)"/);
-            if (smMatch) return smMatch[1];
-            // ValidationError / LinkValidationError
-            let m = raw.match(/(?:Validation|LinkValidation)Error:\s*(.+?)(?:\\n|",|$)/);
-            if (m) return m[1].trim();
-            // OperationalError — match with or without prefix
-            m = raw.match(/OperationalError[:\s]*\((\d+)/);
-            if (!m) m = raw.match(/^\s*\((\d{4}),/);
-            if (!m) m = raw.match(/["\s]\((\d{4}),/);
-            if (m) {
-                const code = m[1];
-                const valMatch = raw.match(/'([^']{1,80})'/);
-                const detail = valMatch ? ' (value: ' + valMatch[1] + ')' : '';
-                return (translations[code] || 'Database error (' + code + ')') + detail;
-            }
-            // Generic exception
+            // Try to find exception message in JSON
             const jsonMatch = raw.match(/\{"exception":\s*"([^"]+)"/);
             if (jsonMatch) {
-                return jsonMatch[1].replace(/^[\w.]+Exception:\s*/, "");
+                let msg = jsonMatch[1];
+                // Clean up the exception prefix
+                msg = msg.replace(/^frappe\.exceptions\.\w+:\s*/, "");
+                return msg;
             }
-            // Unicode escape decode
+            // Try _server_messages
+            const smMatch = raw.match(/"message":\s*"([^"]+)"/);
+            if (smMatch) return smMatch[1];
+            // Try to decode unicode escapes
             if (raw.includes("\\u0")) {
                 try { return JSON.parse('"' + raw.replace(/"/g, '\\"') + '"'); } catch(e) {}
             }
         } catch (e) { /* fall through */ }
+        // Fallback: clean up common noise
         return raw.replace(/https?:\/\/[^\s]+/g, "").replace(/\\n/g, " ").replace(/\\"/g, '"').substring(0, 300);
     }
 

@@ -1,498 +1,554 @@
-"""Import Engine — core import logic for all import types (Insert/Update/Submit/Cancel/Rename)."""
+"""أداة الاستيراد — مطابقة لخطوات Data Import الأصلية في Frappe، بفرق واحد:
+التنفيذ يذهب لموقع عميل عبر API بدل قاعدة البيانات المحلية.
 
+- preview(): يقرأ الملف، يبني صفوف التحويل، ويفحص كل صف (حقول إجبارية + حقول
+  ربط + صيغة التاريخ) لحفظ قائمة الصفوف الفاشلة سلفًا (invalid_row_numbers) —
+  هذا الفحص لا يظهر للمستخدم قبل التنفيذ (تمامًا مثل الأصلي: تفاصيل صحة
+  البيانات تظهر فقط بعد Start Import ضمن Import Log)، لكنه يُستخدم لتوفير
+  استدعاءات API الضائعة على صفوف معروف فشلها.
+- execute(): يتجاوز الصفوف المعروف فشلها تلقائيًا (بلا أي استدعاء API)،
+  وينفّذ فقط الباقي — Insert أو Update حسب import_type — ويبني Import Log
+  بنفس شكل الأصلي (Row Number / Status / Message / Traceback).
+"""
+
+import csv
+import datetime
+import io
 import json
+import os
 import time
 
 import frappe
 from frappe.utils import now_datetime
 
+from mubtkir_ai_creator.lib import llm, tools
+from mubtkir_ai_creator.lib.agent import _dump, log_action
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
-from mubtkir_ai_creator.lib.remote_import.preview import parse_file
+
+SAMPLE_ROWS = 5
+MAX_TOTAL_ROWS = 20000
+COMMIT_EVERY = 25
+MAX_PREVIEW_ROWS = 100
+MAX_LOG_ENTRIES = 500  # حد أقصى لعدد سطور Import Log المحفوظة (حماية حجم القاعدة)
+
+DATE_FORMATS = (
+    "%Y-%m-%d", "%Y/%m/%d",
+    "%d-%m-%Y", "%d/%m/%Y",
+    "%m-%d-%Y", "%m/%d/%Y",
+    "%d.%m.%Y", "%Y-%m-%d %H:%M:%S",
+)
 
 
-def _decode_error(error_str):
-    """Decode API error messages into human-readable text."""
-    import re
-
-    try:
-        # 1. Try to extract _server_messages from JSON response
-        if '{"exception"' in error_str or '{"exc_type"' in error_str or '"_server_messages"' in error_str:
-            json_match = re.search(r'\{.*\}', error_str, re.DOTALL)
-            if json_match:
-                decoded = json.loads(json_match.group())
-                # _server_messages first — most readable
-                sm = decoded.get("_server_messages")
-                if sm:
-                    if isinstance(sm, str) and sm.startswith("["):
-                        try:
-                            msgs = json.loads(sm)
-                            parts = []
-                            for m in msgs:
-                                try:
-                                    parts.append(json.loads(m).get("message", m))
-                                except (json.JSONDecodeError, TypeError, AttributeError):
-                                    parts.append(str(m))
-                            result = " | ".join(parts)
-                            if result.strip():
-                                return result
-                        except (json.JSONDecodeError, TypeError):
-                            pass
-                # exception field
-                exc = decoded.get("exception", "")
-                if exc:
-                    # Strip exception class prefix
-                    exc = re.sub(r'^[\w.]+Exception:\s*', '', str(exc))
-                    if exc.strip():
-                        return exc[:500]
-
-        # 2. pymysql OperationalError — translate common codes
-        op_match = re.search(r'OperationalError[:\s]*\((\d+)', error_str)
-        if op_match:
-            code = op_match.group(1)
-            translations = {
-                '1292': 'Incorrect date/time/number format — check the value matches the expected field type',
-                '1062': 'Duplicate entry — this record already exists',
-                '1048': 'Required field is empty (NOT NULL constraint)',
-                '1452': 'Invalid link — the referenced record does not exist',
-                '1406': 'Value too long for field — exceeds maximum allowed length',
-                '1264': 'Value out of range for field',
-                '1054': 'Unknown column — field does not exist in this DocType',
-                '1146': 'Table does not exist — DocType may not be installed',
-            }
-            if code in translations:
-                # Try to extract the specific value that caused the error
-                detail_match = re.search(r"'([^']{1,100})'", error_str)
-                detail = f" (value: {detail_match.group(1)})" if detail_match else ""
-                return f"{translations[code]}{detail}"
-            return f"Database error ({code})"
-
-        # 3. ValidationError / LinkValidationError
-        val_match = re.search(r'(?:Validation|LinkValidation)Error:\s*(.+?)(?:\\n|$)', error_str)
-        if val_match:
-            return val_match.group(1).strip()[:500]
-
-        # 4. Unicode escape decode
-        if "\\u0" in error_str:
-            try:
-                return error_str.encode("utf-8").decode("unicode_escape")
-            except Exception:
-                pass
-
-    except Exception:
-        pass
-
-    # Fallback: clean up noise
-    result = error_str
-    result = re.sub(r'https?://[^\s,}"]+', '', result)
-    result = result.replace("\\n", " ").replace('\\"', '"')
-    return result[:500]
-
-
-def run_import(import_name, start_row=0):
-    """Execute the import operation.
-
-    This is the main entry point — can be called directly or via background job.
-    """
-    doc = frappe.get_doc("AI Remote Import", import_name)
-    client = FrappeSiteClient(doc.client_site)
-
-    # Load import settings from AI Settings
-    settings = frappe.get_single("AI Settings")
-    max_rows = getattr(settings, "max_import_rows", 0) or 0
-
-    # Parse the file
-    file_data = parse_file(file_url=doc.source_file)
-    headers = file_data["headers"]
-    rows = file_data["rows"]
-
-    # Validate row count against settings
-    if max_rows and len(rows) > max_rows:
-        frappe.throw(f"Import has {len(rows)} rows which exceeds the maximum of {max_rows}. Adjust the limit in AI Settings.")
-
-    # Load mapping
-    mapping = {}
-    if doc.column_mapping:
-        mapping = json.loads(doc.column_mapping)
-    elif doc.mapping_name:
-        map_doc = frappe.get_doc("AI Import Mapping", doc.mapping_name)
-        mapping = json.loads(map_doc.mapping_data or "{}")
-
-    if not mapping:
-        frappe.throw("Column mapping is not defined")
-
-    # Update total
-    doc.db_set("total_rows", len(rows))
-    doc.start_import()
-
-    # Use batch size from settings if not set on the document
-    batch_size = doc.batch_size or getattr(settings, "default_batch_size", 0) or 200
-    total_batches = (len(rows) + batch_size - 1) // batch_size
-    doc.db_set("total_batches", total_batches)
-
-    imported = 0
-    failed = 0
-    skipped = 0
-    errors = []
-
-    import_func = _get_import_func(doc.import_type)
-
-    for batch_num in range(total_batches):
-        batch_start = batch_num * batch_size + start_row
-        batch_end = min(batch_start + batch_size, len(rows))
-        batch_rows = rows[batch_start:batch_end]
-
-        if not batch_rows:
-            continue
-
-        doc.db_set("current_batch", batch_num + 1)
-
-        batch_success = 0
-        batch_fail = 0
-
-        for row_idx, row in enumerate(batch_rows):
-            actual_row = batch_start + row_idx + 2  # +2 for header row + 0-index
-            try:
-                row_data = _build_row_data(headers, row, mapping, doc)
-
-                if not row_data:
-                    skipped += 1
-                    continue
-
-                import_func(client, doc.remote_doctype, row_data, doc)
-                imported += 1
-                batch_success += 1
-                doc.db_set("last_successful_row", actual_row)
-
-            except Exception as e:
-                error_msg = _decode_error(str(e)[:5000])[:500]
-                if doc.skip_failed_rows:
-                    failed += 1
-                    batch_fail += 1
-                    errors.append({"row": actual_row, "error": error_msg})
-                else:
-                    # Stop import on first error
-                    failed += 1
-                    errors.append({"row": actual_row, "error": error_msg})
-                    doc.db_set("error_log", json.dumps(errors, ensure_ascii=False))
-                    doc.update_progress(imported, failed, skipped, batch_num + 1)
-                    doc.db_set("is_resumable", 1)
-                    doc.finish_import("Failed")
-                    _create_import_log(doc, imported, failed, skipped, errors)
-                    return {"status": "Failed", "row": actual_row, "error": error_msg}
-
-            # Update progress every 10 rows
-            if (row_idx + 1) % 10 == 0:
-                doc.update_progress(imported, failed, skipped, batch_num + 1)
-                frappe.publish_realtime(
-                    "import_progress",
-                    {"import_name": import_name, "imported": imported, "failed": failed,
-                     "skipped": skipped, "total": len(rows), "batch": batch_num + 1},
-                    user=doc.started_by,
-                )
-
-        # Update batch row status
-        _update_batch_row(doc, batch_num + 1, batch_start + 2, batch_end + 1,
-                          batch_success, batch_fail)
-
-        # Commit per batch to avoid long transactions
-        frappe.db.commit()
-
-    # Final status
-    doc.db_set("error_log", json.dumps(errors[-1000:], ensure_ascii=False) if errors else "[]")
-    doc.update_progress(imported, failed, skipped, total_batches)
-    frappe.db.commit()  # Ensure progress is persisted before status update
-
-    if failed == 0:
-        status = "Success"
-    elif imported > 0:
-        status = "Partial Success"
-    else:
-        status = "Failed"
-
-    doc.finish_import(status)
-    _create_import_log(doc, imported, failed, skipped, errors)
-    frappe.db.commit()  # Final commit
-
-    frappe.publish_realtime(
-        "import_complete",
-        {"import_name": import_name, "status": status, "imported": imported,
-         "failed": failed, "skipped": skipped,
-         "total_rows": len(rows), "total_batches": total_batches},
-        user=doc.started_by,
-    )
-
-    return {"status": status, "imported": imported, "failed": failed, "skipped": skipped}
-
-
-def _get_import_func(import_type):
-    """Return the appropriate import function for the import type."""
-    funcs = {
-        "Insert": _do_insert,
-        "Update": _do_update,
-        "Insert if Missing": _do_insert_if_missing,
-        "Update if Exists": _do_update_if_exists,
-        "Submit": _do_submit,
-        "Cancel": _do_cancel,
-        "Rename": _do_rename,
-    }
-    func = funcs.get(import_type)
-    if not func:
-        frappe.throw(f"Unsupported import type: {import_type}")
-    return func
-
-
-def _build_row_data(headers, row, mapping, import_doc):
-    """Build a dict from row data using the column mapping.
-
-    Handles parent fields and child table fields (dot notation: table_field.child_field).
-    """
-    data = {}
-    child_data = {}  # {table_fieldname: {child_field: value}}
-
-    for col_idx, header in enumerate(headers):
-        target = mapping.get(header)
-        if not target:
-            continue
-
-        value = row[col_idx] if col_idx < len(row) else ""
-
-        # Skip empty values if option is set
-        if import_doc.ignore_empty_values and (value == "" or value is None):
-            continue
-
-        if "." in target:
-            # Child table field
-            table_fn, child_fn = target.split(".", 1)
-            if table_fn not in child_data:
-                child_data[table_fn] = {}
-            child_data[table_fn][child_fn] = value
-        else:
-            data[target] = value
-
-    # Merge child data
-    for table_fn, child_fields in child_data.items():
-        if table_fn not in data:
-            data[table_fn] = []
-        data[table_fn].append(child_fields)
-
-    # Skip completely empty rows
-    real_values = {k: v for k, v in data.items() if v and k != "name"}
-    if not real_values:
+def _try_parse_date(value):
+    if value in (None, ""):
         return None
-
-    return data
-
-
-def _do_insert(client, doctype, data, import_doc):
-    """Insert a new document."""
-    name = data.pop("name", None)
-    # Handle attachment fields before insert
-    if import_doc.import_attachments:
-        data = _process_attachments(data, import_doc.client_site, doctype, None)
-    resp = client.create_doc(doctype, data)
-    new_name = resp.get("data", {}).get("name")
-    # Upload attachments after insert if needed (for Attach fields with local paths)
-    if import_doc.import_attachments and new_name:
-        _post_insert_attachments(import_doc.client_site, doctype, new_name, data)
-    if import_doc.submit_after_import and new_name:
-        client.call_method("frappe.client.submit", {"doc": json.dumps({"doctype": doctype, "name": new_name})})
-
-
-def _do_update(client, doctype, data, import_doc):
-    """Update an existing document by name."""
-    name = data.pop("name", None)
-    if not name:
-        raise ValueError("'name' column is required for Update")
-    client.update_doc(doctype, name, data)
-
-
-def _do_insert_if_missing(client, doctype, data, import_doc):
-    """Insert only if the document doesn't exist."""
-    name = data.get("name")
-    if name:
+    if isinstance(value, (datetime.date, datetime.datetime)):
+        return value.strftime("%Y-%m-%d")
+    s = str(value).strip()
+    if not s:
+        return None
+    for fmt in DATE_FORMATS:
         try:
-            client.get_doc(doctype, name)
-            return  # Already exists, skip
-        except Exception:
-            pass  # Doesn't exist, proceed with insert
-    data.pop("name", None)
-    client.create_doc(doctype, data)
+            return datetime.datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
 
 
-def _do_update_if_exists(client, doctype, data, import_doc):
-    """Update only if the document exists, otherwise skip."""
-    name = data.pop("name", None)
+# ---------------- قراءة الملف ----------------
+
+def read_rows(file_url):
+    name = frappe.db.get_value("File", {"file_url": file_url}, "name")
     if not name:
-        raise ValueError("'name' column is required for Update")
-    try:
-        client.get_doc(doctype, name)
-        client.update_doc(doctype, name, data)
-    except Exception:
-        pass  # Doesn't exist, skip
+        frappe.throw(f"لم يُعثر على الملف: {file_url}")
 
+    doc = frappe.get_doc("File", name)
+    ext = os.path.splitext(doc.file_name or "")[1].lower()
+    content = doc.get_content()
+    raw = content.encode("utf-8") if isinstance(content, str) else content
 
-def _do_submit(client, doctype, data, import_doc):
-    """Submit an existing document."""
-    name = data.get("name")
-    if not name:
-        raise ValueError("'name' column is required for Submit")
-    client.call_method("frappe.client.submit", {"doc": json.dumps({"doctype": doctype, "name": name})})
-
-
-def _do_cancel(client, doctype, data, import_doc):
-    """Cancel a submitted document."""
-    name = data.get("name")
-    if not name:
-        raise ValueError("'name' column is required for Cancel")
-    client.call_method("frappe.client.cancel", {"doctype": doctype, "name": name})
-
-
-def _do_rename(client, doctype, data, import_doc):
-    """Rename a document."""
-    old_name = data.get("name")
-    new_name = data.get("new_name") or data.get("title")
-    if not old_name or not new_name:
-        raise ValueError("'name' and 'new_name' are required for Rename")
-    client.call_method("frappe.client.rename_doc", {
-        "doctype": doctype,
-        "old": old_name,
-        "new": new_name,
-    })
-
-
-def _update_batch_row(doc, batch_num, start_row, end_row, success, fail):
-    """Update or create a batch tracking row."""
-    existing = None
-    for b in doc.batches or []:
-        if b.batch_number == batch_num:
-            existing = b
-            break
-
-    if existing:
-        existing.db_set("status", "Success" if fail == 0 else ("Partial" if success > 0 else "Failed"))
-        existing.db_set("success_count", success)
-        existing.db_set("fail_count", fail)
+    if ext in (".xlsx", ".xlsm"):
+        headers, rows = _read_xlsx_rows(raw)
+    elif ext == ".csv":
+        headers, rows = _read_csv_rows(raw)
     else:
-        doc.append("batches", {
-            "batch_number": batch_num,
-            "start_row": start_row,
-            "end_row": end_row,
-            "status": "Success" if fail == 0 else ("Partial" if success > 0 else "Failed"),
-            "success_count": success,
-            "fail_count": fail,
-        })
-        doc.save(ignore_permissions=True)
+        frappe.throw(f"صيغة غير مدعومة للاستيراد: {ext}. المدعوم: xlsx و csv")
+
+    if len(rows) > MAX_TOTAL_ROWS:
+        frappe.throw(f"الملف يحتوي {len(rows)} صفًا — الحد الأقصى {MAX_TOTAL_ROWS}")
+
+    return headers, rows
 
 
-def _create_import_log(doc, imported, failed, skipped, errors):
-    """Create an AI Import Log record."""
-    started = doc.started_on or now_datetime()
-    finished = now_datetime()
-    duration_secs = 0
+def read_rows_for_import(doc):
+    if doc.source_file:
+        return read_rows(doc.source_file)
+    if doc.google_sheet_url:
+        return _read_google_sheet_rows(doc.google_sheet_url)
+    frappe.throw("حدد ملف استيراد أو رابط Google Sheet")
+
+
+def _read_google_sheet_rows(sheet_url):
+    import re
+    import requests
+
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", sheet_url or "")
+    if not m:
+        frappe.throw("رابط Google Sheet غير صالح — لازم يكون بصيغة docs.google.com/spreadsheets/d/...")
+    sheet_id = m.group(1)
+    gid_match = re.search(r"[?#&]gid=(\d+)", sheet_url)
+    gid = gid_match.group(1) if gid_match else "0"
+
+    export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
     try:
-        duration_secs = (finished - started).total_seconds()
-    except Exception:
-        pass
+        resp = requests.get(export_url, timeout=30)
+    except requests.RequestException as e:
+        frappe.throw(f"تعذّر الوصول لملف Google Sheet: {e}")
 
-    avg_speed = round(imported / duration_secs, 2) if duration_secs > 0 else 0
+    if resp.status_code != 200 or resp.text.lstrip().lower().startswith("<!doctype html"):
+        frappe.throw("تعذّر قراءة Google Sheet — تأكد أن صلاحية المشاركة \"يمكن لأي شخص لديه الرابط العرض\"")
 
-    log = frappe.get_doc({
-        "doctype": "AI Import Log",
-        "remote_import": doc.name,
-        "client_site": doc.client_site,
-        "import_user": doc.started_by,
-        "remote_doctype": doc.remote_doctype,
-        "import_type": doc.import_type,
-        "status": doc.status,
-        "file_name": doc.source_file_name,
-        "mapping_used": doc.mapping_name,
-        "source_type": "Excel" if (doc.source_file_name or "").endswith((".xlsx", ".xls")) else "CSV",
-        "total_rows": doc.total_rows,
-        "imported_rows": imported,
-        "failed_rows": failed,
-        "skipped_rows": skipped,
-        "duration": duration_secs,
-        "avg_speed": avg_speed,
-        "started_on": started,
-        "finished_on": finished,
-        "errors": json.dumps(errors[-200:], ensure_ascii=False) if errors else "[]",
-    })
-    log.insert(ignore_permissions=True)
+    headers, rows = _read_csv_rows(resp.content)
+    if len(rows) > MAX_TOTAL_ROWS:
+        frappe.throw(f"الشيت يحتوي {len(rows)} صفًا — الحد الأقصى {MAX_TOTAL_ROWS}")
+    return headers, rows
+
+
+def _read_xlsx_rows(raw):
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
+    ws = wb.worksheets[0]
+
+    headers, rows = [], []
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        values = ["" if c is None else str(c).strip() for c in row]
+        if i == 0:
+            headers = [h for h in values]
+            continue
+        if not any(v for v in values):
+            continue
+        rows.append({headers[j]: values[j] for j in range(min(len(headers), len(values))) if headers[j]})
+
+    wb.close()
+    return [h for h in headers if h], rows
+
+
+def _read_csv_rows(raw):
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("cp1256", errors="replace")
+
+    reader = csv.DictReader(io.StringIO(text))
+    headers = [h.strip() for h in (reader.fieldnames or []) if h]
+    rows = []
+    for r in reader:
+        clean = {(k or "").strip(): (str(v).strip() if v is not None else "") for k, v in r.items() if k}
+        if any(clean.values()):
+            rows.append(clean)
+    return headers, rows
+
+
+# ---------------- بناء الخريطة (الاستدعاء الوحيد للنموذج) ----------------
+
+def analyze(name):
+    doc = frappe.get_doc("AI Import", name)
+    headers, rows = read_rows_for_import(doc)
+
+    if not headers:
+        frappe.throw("لم يُعثر على رؤوس أعمدة في الملف")
+
+    client = FrappeSiteClient(doc.client_site)
+    spec = tools.describe_required(client, doc.target_doctype, with_options=True)
+    meta = client.get_meta(doc.target_doctype).get("data", {}) or {}
+
+    fields_brief = [
+        {
+            "fieldname": f.get("fieldname"),
+            "label": f.get("label"),
+            "fieldtype": f.get("fieldtype"),
+            "link_to": f.get("options") if f.get("fieldtype") == "Link" else None,
+            "required": bool(f.get("reqd")),
+        }
+        for f in meta.get("fields", [])
+        if f.get("fieldname") and f.get("fieldtype") not in ("Section Break", "Column Break", "Tab Break", "HTML", "Table")
+    ][:120]
+
+    sample = rows[:SAMPLE_ROWS]
+
+    id_hint = ""
+    if doc.import_type == "Update Existing Records":
+        id_hint = '\nهذا استيراد "تحديث سجلات موجودة" — إن وجد عمود يمثل المعرّف/الاسم (ID)، اربطه بحقل "name".'
+
+    prompt = f"""اربط أعمدة ملف الاستيراد بحقول DocType «{doc.target_doctype}» في ERPNext.
+
+أعمدة الملف: {json.dumps(headers, ensure_ascii=False)}
+
+عيّنة من الصفوف: {json.dumps(sample, ensure_ascii=False)}
+
+حقول الـ DocType المتاحة: {json.dumps(fields_brief, ensure_ascii=False)}
+
+الحقول الإجبارية: {json.dumps([f['fieldname'] for f in spec['required_fields']], ensure_ascii=False)}
+{id_hint}
+أعد JSON فقط بلا أي نص آخر وبلا علامات markdown، بهذا الشكل:
+{{
+  "mapping": {{"اسم العمود في الملف": "fieldname في ERPNext"}},
+  "unmapped_columns": ["أعمدة لم تجد لها مقابلًا"],
+  "missing_required": ["حقول إجبارية لا يوجد لها عمود في الملف"],
+  "notes": "ملاحظات موجزة بالعربية"
+}}"""
+
+    result = llm.chat([{"role": "user", "content": prompt}], system="أنت محلل بيانات. أعد JSON صالحًا فقط.", heavy=True)
+
+    text = (result.get("text") or "").strip()
+    text = text.replace("```json", "").replace("```", "").strip()
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        start, end = text.find("{"), text.rfind("}")
+        if start == -1 or end == -1:
+            frappe.throw(f"تعذّر قراءة خريطة الحقول من النموذج. الرد: {text[:400]}")
+        parsed = json.loads(text[start : end + 1])
+
+    doc.db_set("total_rows", len(rows))
+    doc.db_set("status", "Mapping Ready")
+
+    mapping = parsed.get("mapping") or {}
+    sample_lookup = sample[0] if sample else {}
+    doc.set("field_mapping", [])
+    for column in headers:
+        doc.append(
+            "field_mapping",
+            {
+                "source_column": column,
+                "target_fieldname": mapping.get(column, ""),
+                "sample_value": str(sample_lookup.get(column, ""))[:140],
+            },
+        )
+    doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    # Also log in AI Action Log for unified tracking
-    _log_action(doc, imported, failed, skipped, duration_secs)
-
-    return log.name
+    return {"headers": headers, "total_rows": len(rows), "mapping": mapping, "notes": parsed.get("notes"), "sample_rows": sample, "unmapped": parsed.get("unmapped_columns") or []}
 
 
-def _log_action(doc, imported, failed, skipped, duration_secs):
-    """Create an AI Action Log entry for the import operation."""
-    try:
-        action_log = frappe.get_doc({
-            "doctype": "AI Action Log",
-            "client_site": doc.client_site,
-            "session": doc.session or None,
-            "task": doc.task or None,
-            "tool_name": "remote_import",
-            "risk_level": "Medium",
-            "is_success": 1 if doc.status == "Success" else 0,
-            "duration_ms": int(duration_secs * 1000),
-            "tool_input": json.dumps({
-                "import": doc.name,
-                "doctype": doc.remote_doctype,
-                "import_type": doc.import_type,
-                "total_rows": doc.total_rows,
-                "file": doc.source_file_name,
-            }, ensure_ascii=False),
-            "tool_output": json.dumps({
-                "status": doc.status,
-                "imported": imported,
-                "failed": failed,
-                "skipped": skipped,
-            }, ensure_ascii=False),
-            "error_message": doc.error_log if failed else "",
+# ---------------- تحويل الصفوف ----------------
+
+def _date_fields_for(client, target_doctype):
+    meta = client.get_meta(target_doctype).get("data", {}) or {}
+    return {
+        f.get("fieldname")
+        for f in meta.get("fields", [])
+        if f.get("fieldtype") in ("Date", "Datetime") and f.get("fieldname")
+    }
+
+
+def _build_docs(doc, rows, date_fields=None):
+    """يبني payload كل صف. في وضع التحديث، يُستخرج المعرّف (name) من الـ payload
+    ويُرجَع منفصلاً (row['id']) لاستخدامه في update_doc."""
+    mapping = {r.source_column: r.target_fieldname for r in (doc.field_mapping or []) if r.target_fieldname}
+    statics = json.loads(doc.static_values or "{}")
+    date_fields = date_fields or set()
+    is_update = doc.import_type == "Update Existing Records"
+
+    out = []
+    for i, row in enumerate(rows, start=2):
+        payload = dict(statics)
+        date_issues = []
+        for column, fieldname in mapping.items():
+            if not fieldname:
+                continue
+            value = row.get(column)
+            if value in (None, ""):
+                continue
+            if fieldname in date_fields:
+                parsed_date = _try_parse_date(value)
+                if parsed_date:
+                    payload[fieldname] = parsed_date
+                else:
+                    date_issues.append(f"تعذّر فهم التاريخ في {fieldname}: «{value}»")
+                    payload[fieldname] = value
+            else:
+                payload[fieldname] = value
+
+        row_id = payload.pop("name", None) if is_update else None
+        out.append({"row_number": i, "data": payload, "id": row_id, "date_issues": date_issues})
+    return out
+
+
+# ---------------- المعاينة ----------------
+
+def preview(name):
+    doc = frappe.get_doc("AI Import", name)
+    _, rows = read_rows_for_import(doc)
+    client = FrappeSiteClient(doc.client_site)
+    date_fields = _date_fields_for(client, doc.target_doctype)
+    prepared = _build_docs(doc, rows, date_fields)
+    is_update = doc.import_type == "Update Existing Records"
+
+    spec = tools.describe_required(client, doc.target_doctype, with_options=True)
+    meta = client.get_meta(doc.target_doctype).get("data", {}) or {}
+    field_labels = {f.get("fieldname"): f.get("label") or f.get("fieldname") for f in meta.get("fields", [])}
+
+    link_fields = {}
+    for f in meta.get("fields", []):
+        if f.get("fieldtype") == "Link" and f.get("options"):
+            link_fields[f.get("fieldname")] = f.get("options")
+
+    # في وضع التحديث لا تُشترط الحقول الإجبارية — فقط وجود المعرّف
+    required = [] if is_update else [f for f in spec["required_fields"] if not f.get("default")]
+
+    unique_values = {}
+    for item in prepared:
+        for fieldname, target in link_fields.items():
+            v = item["data"].get(fieldname)
+            if v:
+                unique_values.setdefault(fieldname, set()).add(v)
+
+    invalid_links = {}
+    for fieldname, values in unique_values.items():
+        target = link_fields[fieldname]
+        for v in values:
+            try:
+                found = client.get_list(target, fields=["name"], filters={"name": v}, limit=1).get("data") or []
+            except Exception:
+                found = []
+            if not found:
+                invalid_links.setdefault(fieldname, {"doctype": target, "values": []})
+                invalid_links[fieldname]["values"].append(v)
+
+    issues, ok_count = [], 0
+    invalid_row_reasons = {}
+    for item in prepared:
+        row_issues = list(item.get("date_issues") or [])
+        if is_update and not item.get("id"):
+            row_issues.append("لا يوجد معرّف (ID) لهذا الصف — لازم عمود مربوط بحقل name")
+        for f in required:
+            if not item["data"].get(f["fieldname"]):
+                row_issues.append(f"حقل إجباري ناقص: {f.get('label') or f['fieldname']}")
+        for fieldname, info in invalid_links.items():
+            v = item["data"].get(fieldname)
+            if v and v in info["values"]:
+                row_issues.append(f"قيمة ربط غير موجودة في {fieldname}: {v}")
+
+        if row_issues:
+            issues.append({"row": item["row_number"], "issues": row_issues})
+            invalid_row_reasons[str(item["row_number"])] = row_issues
+        else:
+            ok_count += 1
+
+    # ---- preview_result: أعمدة + صفوف بقيم حقيقية (مربوطة وغير مربوطة) ----
+    columns = []
+    for r in (doc.field_mapping or []):
+        columns.append({
+            "source_column": r.source_column,
+            "fieldname": r.target_fieldname or None,
+            "label": field_labels.get(r.target_fieldname, r.target_fieldname) if r.target_fieldname else None,
+            "mapped": bool(r.target_fieldname),
         })
-        action_log.insert(ignore_permissions=True)
-        frappe.db.commit()
+
+    invalid_rows_by_num = {i["row"]: i["issues"] for i in issues}
+    data_rows = []
+    for item in prepared[:MAX_PREVIEW_ROWS]:
+        row_issues = invalid_rows_by_num.get(item["row_number"])
+        # القيم بترتيب أعمدة field_mapping (من الملف الخام، لا من payload، عشان تظهر حتى غير المربوطة)
+        raw_row = rows[item["row_number"] - 2]
+        cells = [raw_row.get(c["source_column"], "") for c in columns]
+        data_rows.append({"row_number": item["row_number"], "values": cells, "ok": not row_issues})
+
+    preview_result = {
+        "columns": columns,
+        "rows": data_rows,
+        "total_rows": len(prepared),
+        "max_rows_exceeded": len(prepared) > MAX_PREVIEW_ROWS,
+        "max_rows_in_preview": MAX_PREVIEW_ROWS,
+    }
+
+    doc.db_set("total_rows", len(prepared))
+    doc.db_set("valid_rows", ok_count)
+    doc.db_set("invalid_rows", len(issues))
+    doc.db_set("preview_result", json.dumps(preview_result, ensure_ascii=False))
+    doc.db_set("invalid_row_numbers", json.dumps(invalid_row_reasons, ensure_ascii=False))
+    doc.db_set("status", "Pending Approval")
+    frappe.db.commit()
+
+    return {"valid": ok_count, "invalid": len(issues)}
+
+
+@frappe.whitelist()
+def get_template(client_site, target_doctype):
+    """يبني ملف CSV بعناوين الحقول الإجبارية (والاسم لو تحديث سجلات) لتحميله كقالب."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    client = FrappeSiteClient(client_site)
+    spec = tools.describe_required(client, target_doctype, with_options=False)
+
+    headers = [f.get("label") or f.get("fieldname") for f in spec["required_fields"]]
+    if not headers:
+        meta = client.get_meta(target_doctype).get("data", {}) or {}
+        headers = [
+            f.get("label") or f.get("fieldname")
+            for f in meta.get("fields", [])
+            if f.get("fieldtype") not in ("Section Break", "Column Break", "Tab Break", "HTML", "Table")
+        ][:15]
+
+    buf = io.StringIO()
+    csv.writer(buf).writerow(headers)
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": f"{target_doctype}-template.csv",
+        "content": buf.getvalue(),
+        "is_private": 1,
+    })
+    file_doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return {"file_url": file_doc.file_url}
+
+
+# ---------------- التنفيذ ----------------
+
+def enqueue_execute(name):
+    doc = frappe.get_doc("AI Import", name)
+    if doc.status != "Approved":
+        frappe.throw("لا يمكن التنفيذ قبل الاعتماد")
+
+    doc.db_set("status", "Queued")
+    doc.db_set("processed_rows", 0)
+    frappe.db.commit()
+
+    frappe.enqueue(
+        "mubtkir_ai_creator.lib.importer.execute",
+        queue="long",
+        timeout=7200,
+        name=name,
+        enqueue_after_commit=True,
+    )
+    return {"status": "Queued"}
+
+
+def _parse_remote_error(err_text):
+    """يحاول استخراج عنوان/تفصيل مقروء من نص خطأ الـ API — يُبقي النص الخام كـ traceback."""
+    title, detail = "Failed", err_text[:300]
+    try:
+        start = err_text.find("{")
+        if start != -1:
+            payload = json.loads(err_text[start:])
+            msgs = payload.get("_server_messages")
+            if msgs:
+                parsed_msgs = json.loads(msgs)
+                first = json.loads(parsed_msgs[0]) if parsed_msgs else {}
+                detail = first.get("message") or detail
+            exc_type = payload.get("exc_type") or ""
+            if "DuplicateEntry" in exc_type or "already exists" in detail:
+                title = "Duplicate Name"
+            elif "ValidationError" in exc_type:
+                title = "Validation Error"
+            elif "LinkValidationError" in exc_type or "MandatoryError" in exc_type:
+                title = "Missing / Invalid Value"
+            elif "PermissionError" in exc_type:
+                title = "Permission Error"
     except Exception:
-        pass  # Action log is best-effort
+        pass
+    return title, detail
 
 
-def _process_attachments(data, client_site, doctype, docname):
-    """Pre-process attachment fields — convert local references to remote URLs where possible."""
-    from mubtkir_ai_creator.lib.remote_import.attachment import process_attachment_column
+def execute(name):
+    started = time.time()
+    doc = frappe.get_doc("AI Import", name)
+    _, rows = read_rows_for_import(doc)
+    client = FrappeSiteClient(doc.client_site)
+    date_fields = _date_fields_for(client, doc.target_doctype)
+    prepared = _build_docs(doc, rows, date_fields)
+    is_update = doc.import_type == "Update Existing Records"
 
-    # Identify Attach/Attach Image fields by checking for file-like values
-    for key, value in list(data.items()):
-        if not isinstance(value, str):
-            continue
-        val = value.strip()
-        if val.startswith(("/files/", "/private/files/")) or (
-            val and "." in val.rsplit("/", 1)[-1] and not val.startswith("http")
-        ):
-            # Likely an attachment — process it
+    known_invalid = json.loads(doc.invalid_row_numbers or "{}")
+    skip_invalid = bool(doc.skip_invalid_rows)
+
+    is_submittable = False
+    if doc.submit_after_import:
+        meta = client.get_meta(doc.target_doctype).get("data", {}) or {}
+        is_submittable = bool(meta.get("is_submittable"))
+
+    doc.db_set("status", "Executing")
+    frappe.db.commit()
+
+    success = failed = skipped_known = 0
+    log = []
+
+    for idx, item in enumerate(prepared, start=1):
+        row_key = str(item["row_number"])
+        if row_key in known_invalid:
+            failed += 1
+            skipped_known += 1
+            if len(log) < MAX_LOG_ENTRIES:
+                log.append({
+                    "row": item["row_number"], "status": "Failure",
+                    "title": "Skipped (Invalid at Preview)",
+                    "detail": " | ".join(known_invalid[row_key]),
+                    "traceback": None,
+                })
+        else:
             try:
-                new_val = process_attachment_column(client_site, doctype, docname or "", val)
-                if new_val:
-                    data[key] = new_val
-            except Exception:
-                pass  # Keep original value if upload fails
-    return data
+                if is_update:
+                    out = client.update_doc(doc.target_doctype, item["id"], item["data"])
+                    created_name = item["id"]
+                else:
+                    out = client.create_doc(doc.target_doctype, item["data"])
+                    created_name = (out or {}).get("data", {}).get("name")
 
+                if is_submittable and created_name:
+                    try:
+                        full_doc = client.get_doc(doc.target_doctype, created_name).get("data") or {}
+                        client.call_method("frappe.client.submit", {"doc": json.dumps(full_doc)})
+                    except Exception as sub_err:
+                        # فشل الاعتماد لا يُلغي نجاح الإنشاء — يُسجَّل كملاحظة فقط
+                        if len(log) < MAX_LOG_ENTRIES:
+                            log.append({
+                                "row": item["row_number"], "status": "Failure",
+                                "title": "Created but Not Submitted",
+                                "detail": str(sub_err)[:300],
+                                "traceback": str(sub_err)[:2000],
+                            })
+                success += 1
+            except Exception as e:
+                failed += 1
+                title, detail = _parse_remote_error(str(e))
+                if not skip_invalid:
+                    doc.db_set("status", "Failed")
+                    doc.db_set("error_message", f"توقف عند الصف {item['row_number']}: {detail}")
+                if len(log) < MAX_LOG_ENTRIES:
+                    log.append({
+                        "row": item["row_number"], "status": "Failure",
+                        "title": title, "detail": detail, "traceback": str(e)[:2000],
+                    })
+                if not skip_invalid:
+                    break
 
-def _post_insert_attachments(client_site, doctype, docname, data):
-    """Upload local file attachments after document creation (when we have the docname)."""
-    from mubtkir_ai_creator.lib.remote_import.attachment import upload_attachment
-    import os
+        if idx % COMMIT_EVERY == 0:
+            doc.db_set("processed_rows", idx)
+            doc.db_set("success_count", success)
+            doc.db_set("failed_count", failed)
+            frappe.db.commit()
 
-    for key, value in data.items():
-        if not isinstance(value, str):
-            continue
-        val = value.strip()
-        # If it's still a local path, try uploading now that we have a docname
-        if val.startswith(("/files/", "/private/files/")):
-            try:
-                upload_attachment(client_site, doctype, docname, file_url=val)
-            except Exception:
-                pass
+    doc.db_set("processed_rows", len(prepared))
+    doc.db_set("success_count", success)
+    doc.db_set("failed_count", failed)
+    doc.db_set("import_log", json.dumps(log, ensure_ascii=False))
+
+    if doc.status != "Failed":
+        doc.db_set("status", "Completed" if failed == 0 else "Partially Failed")
+
+    log_action(
+        client_site=doc.client_site,
+        site_url=client.site_url,
+        tool_name="bulk_import",
+        risk_level="high",
+        tool_input=_dump({"import": doc.name, "doctype": doc.target_doctype, "import_type": doc.import_type, "rows": len(prepared)}),
+        tool_output=_dump({"success": success, "failed": failed, "skipped_known_invalid": skipped_known}),
+        is_success=1 if failed == 0 else 0,
+        duration_ms=int((time.time() - started) * 1000),
+        error_message=None if failed == 0 else f"فشل {failed} صفًا ({skipped_known} منها متجاوَز من المعاينة) — راجع Import Log",
+    )
+
+    frappe.db.commit()
+    return {"status": doc.status, "success": success, "failed": failed, "skipped_known_invalid": skipped_known}

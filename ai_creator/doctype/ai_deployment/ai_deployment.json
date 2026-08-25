@@ -1,12 +1,10 @@
 {
  "actions": [],
- "autoname": "naming_series:DEP-.YY.-.MM.-.####",
+ "autoname": "format:DEP-{YY}{MM}-{#####}",
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
-  "tab_details",
   "title",
   "deployment_type",
   "column_break_1",
@@ -20,57 +18,38 @@
   "column_break_2",
   "target_doctype",
   "manual_payload",
+  "payload_section",
+  "resolved_payload",
   "targets_section",
   "targets",
-  "tab_preview",
   "preview_section",
   "preview_summary",
   "approval_section",
   "approved_by",
   "column_break_3",
   "approved_on",
-  "tab_result",
   "result_section",
   "total_targets",
   "success_count",
   "column_break_4",
   "failed_count",
-  "skipped_count",
-  "tab_payload",
-  "payload_section",
-  "resolved_payload"
+  "skipped_count"
  ],
  "fields": [
   {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "DEP-.YY.-.MM.-.####",
-   "default": "DEP-.YY.-.MM.-.####",
-   "hidden": 1,
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
-  },
-  {
-   "fieldname": "tab_details",
-   "fieldtype": "Tab Break",
-   "label": "Details"
-  },
-  {
    "fieldname": "title",
    "fieldtype": "Data",
-   "label": "Deployment Title",
+   "label": "عنوان النشر",
    "reqd": 1,
    "in_list_view": 1
   },
   {
    "fieldname": "deployment_type",
    "fieldtype": "Select",
-   "label": "Deployment Type",
+   "label": "نوع العملية",
+   "options": "Print Format\nCustom Field\nSettings",
    "reqd": 1,
-   "in_list_view": 1,
-   "options": "Print Format\nCustom Field\nSettings\nCustom HTML Block\nWorkspace\nItem\nCustomer\nSupplier"
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_1",
@@ -79,7 +58,7 @@
   {
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "Status",
+   "label": "الحالة",
    "options": "Draft\nPreviewed\nPending Approval\nApproved\nExecuting\nCompleted\nPartially Failed\nFailed",
    "default": "Draft",
    "read_only": 1,
@@ -88,47 +67,46 @@
   {
    "fieldname": "overwrite_existing",
    "fieldtype": "Check",
-   "label": "Overwrite on Conflict",
+   "label": "استبدال الموجود عند التعارض",
    "default": "0",
-   "description": "If item exists at target client: enabled = overwrite, disabled = skip"
+   "description": "إن كان العنصر موجودًا لدى العميل: مفعّل = يُستبدل، غير مفعّل = يُتخطى"
   },
   {
    "fieldname": "source_section",
    "fieldtype": "Section Break",
-   "label": "Source"
+   "label": "المصدر"
   },
   {
    "fieldname": "source_mode",
    "fieldtype": "Select",
-   "label": "Source Mode",
-   "options": "Copy from Client\nManual\nFrom Template",
-   "default": "Copy from Client",
+   "label": "طريقة التعريف",
+   "options": "نسخ من عميل\nتعريف يدوي\nمن قالب",
+   "default": "نسخ من عميل",
    "reqd": 1
   },
   {
    "fieldname": "source_client",
    "fieldtype": "Link",
-   "label": "Source Client",
+   "label": "العميل المصدر",
    "options": "AI Client Site",
-   "depends_on": "eval:doc.source_mode=='Copy from Client'",
-   "mandatory_depends_on": "eval:doc.source_mode=='Copy from Client'",
-   "in_list_view": 1
+   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "mandatory_depends_on": "eval:doc.source_mode=='نسخ من عميل'"
   },
   {
    "fieldname": "source_record",
    "fieldtype": "Data",
-   "label": "Source Record Name",
-   "depends_on": "eval:doc.source_mode=='Copy from Client'",
-   "description": "Print Format name, Custom Field name, or Settings DocType name",
+   "label": "اسم العنصر لدى المصدر",
+   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "description": "اسم Print Format، أو اسم Custom Field، أو اسم DocType الإعدادات",
    "mandatory_depends_on": ""
   },
   {
    "fieldname": "source_template",
    "fieldtype": "Link",
-   "label": "Template",
+   "label": "القالب",
    "options": "AI Template",
-   "depends_on": "eval:doc.source_mode=='From Template'",
-   "mandatory_depends_on": "eval:doc.source_mode=='From Template'"
+   "depends_on": "eval:doc.source_mode=='من قالب'",
+   "mandatory_depends_on": "eval:doc.source_mode=='من قالب'"
   },
   {
    "fieldname": "column_break_2",
@@ -137,53 +115,61 @@
   {
    "fieldname": "target_doctype",
    "fieldtype": "Data",
-   "label": "Target DocType",
-   "description": "For Custom Field: the parent DocType. For Settings: the Settings DocType name (e.g. Stock Settings)."
+   "label": "الـ DocType المستهدف",
+   "description": "لـ Custom Field: الـ DocType المضاف إليه. لـ Settings: اسم DocType الإعدادات مثل Stock Settings"
   },
   {
    "fieldname": "manual_payload",
    "fieldtype": "Code",
-   "label": "Manual Payload",
+   "label": "التعريف اليدوي (JSON)",
    "options": "JSON",
-   "depends_on": "eval:doc.source_mode=='Manual'",
-   "mandatory_depends_on": "eval:doc.source_mode=='Manual'"
+   "depends_on": "eval:doc.source_mode=='تعريف يدوي'",
+   "mandatory_depends_on": "eval:doc.source_mode=='تعريف يدوي'"
+  },
+  {
+   "fieldname": "payload_section",
+   "fieldtype": "Section Break",
+   "label": "البيانات النهائية"
+  },
+  {
+   "fieldname": "resolved_payload",
+   "fieldtype": "Code",
+   "label": "ما سيُطبَّق فعليًا",
+   "options": "JSON",
+   "read_only": 1
   },
   {
    "fieldname": "targets_section",
    "fieldtype": "Section Break",
-   "label": "Target Clients"
+   "label": "العملاء المستهدفون (بحد أقصى 10)"
   },
   {
    "fieldname": "targets",
    "fieldtype": "Table",
-   "label": "Targets",
+   "label": "الأهداف",
    "options": "AI Deployment Target",
    "reqd": 1
   },
   {
-   "fieldname": "tab_preview",
-   "fieldtype": "Tab Break",
-   "label": "Preview"
-  },
-  {
    "fieldname": "preview_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "المعاينة"
   },
   {
    "fieldname": "preview_summary",
    "fieldtype": "Small Text",
-   "label": "Preview Summary",
+   "label": "ملخص المعاينة",
    "read_only": 1
   },
   {
    "fieldname": "approval_section",
    "fieldtype": "Section Break",
-   "label": "Approval"
+   "label": "الاعتماد"
   },
   {
    "fieldname": "approved_by",
    "fieldtype": "Link",
-   "label": "Approved By",
+   "label": "اعتمدها",
    "options": "User",
    "read_only": 1
   },
@@ -194,31 +180,25 @@
   {
    "fieldname": "approved_on",
    "fieldtype": "Datetime",
-   "label": "Approved On",
+   "label": "تاريخ الاعتماد",
    "read_only": 1
   },
   {
-   "fieldname": "tab_result",
-   "fieldtype": "Tab Break",
-   "label": "Result"
-  },
-  {
    "fieldname": "result_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "النتيجة"
   },
   {
    "fieldname": "total_targets",
    "fieldtype": "Int",
-   "label": "Total Targets",
-   "read_only": 1,
-   "in_list_view": 1
+   "label": "إجمالي الأهداف",
+   "read_only": 1
   },
   {
    "fieldname": "success_count",
    "fieldtype": "Int",
-   "label": "Succeeded",
-   "read_only": 1,
-   "in_list_view": 1
+   "label": "نجحت",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_4",
@@ -227,32 +207,13 @@
   {
    "fieldname": "failed_count",
    "fieldtype": "Int",
-   "label": "Failed",
-   "read_only": 1,
-   "in_list_view": 1
+   "label": "فشلت",
+   "read_only": 1
   },
   {
    "fieldname": "skipped_count",
    "fieldtype": "Int",
-   "label": "Skipped",
-   "read_only": 1,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "tab_payload",
-   "fieldtype": "Tab Break",
-   "label": "Final Payload"
-  },
-  {
-   "fieldname": "payload_section",
-   "fieldtype": "Section Break",
-   "label": ""
-  },
-  {
-   "fieldname": "resolved_payload",
-   "fieldtype": "Code",
-   "label": "Resolved Payload",
-   "options": "JSON",
+   "label": "تُخطّيت",
    "read_only": 1
   }
  ],
@@ -286,6 +247,5 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "title_field": "title",
- "track_changes": 1,
- "naming_rule": "By \"Naming Series\" field"
+ "track_changes": 1
 }

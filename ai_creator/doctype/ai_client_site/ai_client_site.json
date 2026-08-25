@@ -4,7 +4,6 @@
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "allow_import": 1,
  "field_order": [
   "client_name",
   "site_url",
@@ -30,7 +29,7 @@
   {
    "fieldname": "client_name",
    "fieldtype": "Data",
-   "label": "Client Name",
+   "label": "اسم العميل",
    "reqd": 1,
    "unique": 1,
    "in_list_view": 1
@@ -38,10 +37,10 @@
   {
    "fieldname": "site_url",
    "fieldtype": "Data",
-   "label": "Site URL",
+   "label": "رابط الموقع",
    "reqd": 1,
    "in_list_view": 1,
-   "description": "Example: https://client.mubtkir.cloud (no trailing slash)"
+   "description": "مثال: https://client.mubtkir.cloud (بدون / في النهاية)"
   },
   {
    "fieldname": "column_break_1",
@@ -50,7 +49,7 @@
   {
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "Connection Status",
+   "label": "حالة الاتصال",
    "options": "Unknown\nConnected\nFailed",
    "default": "Unknown",
    "read_only": 1,
@@ -59,25 +58,25 @@
   {
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "label": "Active",
+   "label": "مفعّل",
    "default": "1"
   },
   {
    "fieldname": "credentials_section",
    "fieldtype": "Section Break",
-   "label": "Credentials"
+   "label": "بيانات الاتصال"
   },
   {
    "fieldname": "api_user",
    "fieldtype": "Data",
-   "label": "API User",
+   "label": "مستخدم API",
    "default": "Administrator"
   },
   {
    "fieldname": "api_key",
    "fieldtype": "Password",
    "label": "API Key",
-   "description": "Added manually from client site: User → Administrator → API Access → Generate Keys"
+   "description": "يُضاف يدويًا من موقع العميل: User → Administrator → API Access"
   },
   {
    "fieldname": "column_break_2",
@@ -87,12 +86,12 @@
    "fieldname": "api_secret",
    "fieldtype": "Password",
    "label": "API Secret",
-   "description": "Added manually from client site: User → Administrator → API Access → Generate Keys"
+   "description": "يُضاف يدويًا من موقع العميل: User → Administrator → API Access"
   },
   {
    "fieldname": "credentials_ready",
    "fieldtype": "Check",
-   "label": "Credentials Ready",
+   "label": "المفاتيح مكتملة",
    "read_only": 1,
    "in_list_view": 1,
    "default": "0"
@@ -100,18 +99,18 @@
   {
    "fieldname": "info_section",
    "fieldtype": "Section Break",
-   "label": "Site Info"
+   "label": "معلومات الموقع"
   },
   {
    "fieldname": "erpnext_version",
    "fieldtype": "Data",
-   "label": "ERPNext Version",
+   "label": "إصدار ERPNext",
    "read_only": 1
   },
   {
    "fieldname": "frappe_version",
    "fieldtype": "Data",
-   "label": "Frappe Version",
+   "label": "إصدار Frappe",
    "read_only": 1
   },
   {
@@ -121,25 +120,25 @@
   {
    "fieldname": "last_connection_check",
    "fieldtype": "Datetime",
-   "label": "Last Connection Check",
+   "label": "آخر فحص اتصال",
    "read_only": 1
   },
   {
    "fieldname": "last_error",
    "fieldtype": "Small Text",
-   "label": "Last Error",
+   "label": "آخر خطأ",
    "read_only": 1
   },
   {
    "fieldname": "press_section",
    "fieldtype": "Section Break",
-   "label": "Press Integration (optional)"
+   "label": "الربط مع Press (اختياري)"
   },
   {
    "fieldname": "press_site",
    "fieldtype": "Data",
-   "label": "Press Site Name",
-   "description": "Filled later when migrating to the production server"
+   "label": "اسم الموقع في Press",
+   "description": "يُملأ لاحقًا عند النقل للسيرفر الأساسي"
   }
  ],
  "links": [],

@@ -1,226 +1,49 @@
 {
  "actions": [],
- "autoname": "naming_series:TASK-.YY.-.MM.-.####",
+ "autoname": "format:TASK-{YY}{MM}-{#####}",
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "req_section",
-  "naming_series",
-  "session",
-  "client_site",
-  "column_break_1",
-  "status",
-  "risk_level",
-  "confidence",
-  "request_text",
-  "plan_section",
-  "plan",
-  "planned_calls",
-  "approval_section",
-  "approval_required",
-  "approved_by",
-  "column_break_2",
-  "approved_on",
-  "scheduled_time",
-  "rejection_reason",
-  "result_section",
-  "execution_result",
-  "verification_result",
-  "error_message",
-  "chat_tab",
-  "chat_output_html"
+  "session", "client_site", "column_break_1", "status", "risk_level", "confidence",
+  "req_section", "request_text",
+  "plan_section", "plan", "planned_calls",
+  "approval_section", "approval_required", "approved_by", "column_break_2", "approved_on", "rejection_reason",
+  "result_section", "execution_result", "verification_result", "error_message"
  ],
  "fields": [
-  {
-   "fieldname": "req_section",
-   "fieldtype": "Tab Break",
-   "label": "Details"
-  },
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "TASK-.YY.-.MM.-.####",
-   "default": "TASK-.YY.-.MM.-.####",
-   "hidden": 1,
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
-  },
-  {
-   "fieldname": "session",
-   "fieldtype": "Link",
-   "label": "Session",
-   "options": "AI Session",
-   "read_only": 1
-  },
-  {
-   "fieldname": "client_site",
-   "fieldtype": "Link",
-   "label": "Client",
-   "options": "AI Client Site",
-   "read_only": 1,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "Draft\nPlanned\nPending Approval\nApproved\nRejected\nExecuting\nCompleted\nFailed",
-   "default": "Draft",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "risk_level",
-   "fieldtype": "Select",
-   "label": "Risk Level",
-   "options": "Low\nMedium\nHigh",
-   "default": "Low",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "confidence",
-   "fieldtype": "Float",
-   "label": "Confidence",
-   "precision": "2"
-  },
-  {
-   "fieldname": "request_text",
-   "fieldtype": "Small Text",
-   "label": "Request Text"
-  },
-  {
-   "fieldname": "plan_section",
-   "fieldtype": "Tab Break",
-   "label": "Plan"
-  },
-  {
-   "fieldname": "plan",
-   "fieldtype": "Text Editor",
-   "label": "Plan",
-   "read_only": 1
-  },
-  {
-   "fieldname": "planned_calls",
-   "fieldtype": "Code",
-   "label": "Planned Tool Calls",
-   "options": "JSON",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approval_section",
-   "fieldtype": "Tab Break",
-   "label": "Approval"
-  },
-  {
-   "fieldname": "approval_required",
-   "fieldtype": "Check",
-   "label": "Approval Required",
-   "read_only": 1
-  },
-  {
-   "fieldname": "approved_by",
-   "fieldtype": "Link",
-   "label": "Approved By",
-   "options": "User",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "approved_on",
-   "fieldtype": "Datetime",
-   "label": "Approved On",
-   "read_only": 1
-  },
-  {
-   "fieldname": "scheduled_time",
-   "fieldtype": "Datetime",
-   "label": "Scheduled Time",
-   "description": "Leave empty for immediate execution"
-  },
-  {
-   "fieldname": "rejection_reason",
-   "fieldtype": "Small Text",
-   "label": "Rejection Reason"
-  },
-  {
-   "fieldname": "result_section",
-   "fieldtype": "Tab Break",
-   "label": "Result"
-  },
-  {
-   "fieldname": "execution_result",
-   "fieldtype": "Code",
-   "label": "Execution Result",
-   "options": "JSON",
-   "read_only": 1
-  },
-  {
-   "fieldname": "verification_result",
-   "fieldtype": "Code",
-   "label": "Verification Result",
-   "options": "JSON",
-   "read_only": 1
-  },
-  {
-   "fieldname": "error_message",
-   "fieldtype": "Small Text",
-   "label": "Error",
-   "read_only": 1
-  },
-  {
-   "fieldname": "chat_tab",
-   "fieldtype": "Tab Break",
-   "label": "Chat Output"
-  },
-  {
-   "fieldname": "chat_output_html",
-   "fieldtype": "HTML",
-   "label": "Chat Output Display"
-  }
+  {"fieldname": "session", "fieldtype": "Link", "label": "الجلسة", "options": "AI Session", "read_only": 1},
+  {"fieldname": "client_site", "fieldtype": "Link", "label": "العميل", "options": "AI Client Site", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "status", "fieldtype": "Select", "label": "الحالة", "options": "Draft\nPlanned\nPending Approval\nApproved\nRejected\nExecuting\nCompleted\nFailed", "default": "Draft", "in_list_view": 1},
+  {"fieldname": "risk_level", "fieldtype": "Select", "label": "مستوى الخطورة", "options": "Low\nMedium\nHigh", "default": "Low", "in_list_view": 1},
+  {"fieldname": "confidence", "fieldtype": "Float", "label": "مستوى الثقة", "precision": "2"},
+  {"fieldname": "req_section", "fieldtype": "Section Break", "label": "الطلب"},
+  {"fieldname": "request_text", "fieldtype": "Small Text", "label": "نص الطلب"},
+  {"fieldname": "plan_section", "fieldtype": "Section Break", "label": "خطة التنفيذ"},
+  {"fieldname": "plan", "fieldtype": "Text Editor", "label": "الخطة", "read_only": 1},
+  {"fieldname": "planned_calls", "fieldtype": "Code", "label": "الأدوات المخطط تنفيذها (JSON)", "options": "JSON", "read_only": 1},
+  {"fieldname": "approval_section", "fieldtype": "Section Break", "label": "الاعتماد"},
+  {"fieldname": "approval_required", "fieldtype": "Check", "label": "يتطلب موافقة", "read_only": 1},
+  {"fieldname": "approved_by", "fieldtype": "Link", "label": "اعتمدها", "options": "User", "read_only": 1},
+  {"fieldname": "column_break_2", "fieldtype": "Column Break"},
+  {"fieldname": "approved_on", "fieldtype": "Datetime", "label": "تاريخ الاعتماد", "read_only": 1},
+  {"fieldname": "rejection_reason", "fieldtype": "Small Text", "label": "سبب الرفض"},
+  {"fieldname": "result_section", "fieldtype": "Section Break", "label": "النتيجة"},
+  {"fieldname": "execution_result", "fieldtype": "Code", "label": "نتيجة التنفيذ", "options": "JSON", "read_only": 1},
+  {"fieldname": "verification_result", "fieldtype": "Code", "label": "نتيجة التحقق", "options": "JSON", "read_only": 1},
+  {"fieldname": "error_message", "fieldtype": "Small Text", "label": "الخطأ", "read_only": 1}
  ],
- "links": [
-  {
-   "group": "التنفيذ",
-   "link_doctype": "AI Action Log",
-   "link_fieldname": "task"
-  }
- ],
+ "links": [],
  "modified": "2026-01-01 00:00:00.000000",
  "module": "AI Creator",
  "name": "AI Task",
  "owner": "Administrator",
  "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "read": 1,
-   "write": 1,
-   "role": "System Manager",
-   "share": 1
-  },
-  {
-   "create": 1,
-   "read": 1,
-   "write": 1,
-   "role": "AI Creator User"
-  },
-  {
-   "create": 1,
-   "read": 1,
-   "write": 1,
-   "role": "AI Creator Supervisor"
-  }
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager", "share": 1},
+  {"create": 1, "read": 1, "write": 1, "role": "AI Creator User"},
+  {"create": 1, "read": 1, "write": 1, "role": "AI Creator Supervisor"}
  ],
  "sort_field": "modified",
- "sort_order": "DESC",
- "naming_rule": "By \"Naming Series\" field"
+ "sort_order": "DESC"
 }

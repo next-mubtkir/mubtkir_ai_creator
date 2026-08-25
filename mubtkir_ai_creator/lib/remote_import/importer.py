@@ -11,86 +11,35 @@ from mubtkir_ai_creator.lib.remote_import.preview import parse_file
 
 
 def _decode_error(error_str):
-    """Decode API error messages into human-readable text."""
-    import re
-
+    """Decode Unicode escapes in API error messages to readable Arabic text."""
     try:
-        # 1. Try to extract _server_messages from JSON response
-        if '{"exception"' in error_str or '{"exc_type"' in error_str or '"_server_messages"' in error_str:
-            json_match = re.search(r'\{.*\}', error_str, re.DOTALL)
+        # Try to extract JSON from the error string and decode it
+        if '{"exception"' in error_str or '{"exc_type"' in error_str:
+            import re
+            json_match = re.search(r'\{.*\}', error_str)
             if json_match:
                 decoded = json.loads(json_match.group())
-                # _server_messages first — most readable
-                sm = decoded.get("_server_messages")
-                if sm:
-                    if isinstance(sm, str) and sm.startswith("["):
-                        try:
-                            msgs = json.loads(sm)
-                            parts = []
-                            for m in msgs:
-                                try:
-                                    parts.append(json.loads(m).get("message", m))
-                                except (json.JSONDecodeError, TypeError, AttributeError):
-                                    parts.append(str(m))
-                            result = " | ".join(parts)
-                            if result.strip():
-                                return result
-                        except (json.JSONDecodeError, TypeError):
-                            pass
-                # exception field
-                exc = decoded.get("exception", "")
-                if exc:
-                    # Strip exception class prefix
-                    exc = re.sub(r'^[\w.]+Exception:\s*', '', str(exc))
-                    if exc.strip():
-                        return exc[:500]
-
-        # 2. pymysql OperationalError — translate common codes
-        # Match with or without OperationalError prefix (e.g. bare "(1292, ...")
-        op_match = re.search(r'OperationalError[:\s]*\((\d+)', error_str)
-        if not op_match:
-            op_match = re.search(r'^\s*\((\d{4}),', error_str)
-        if not op_match:
-            op_match = re.search(r'["\s]\((\d{4}),', error_str)
-        if op_match:
-            code = op_match.group(1)
-            translations = {
-                '1292': 'Incorrect date/time/number format — check the value matches the expected field type',
-                '1062': 'Duplicate entry — this record already exists',
-                '1048': 'Required field is empty (NOT NULL constraint)',
-                '1452': 'Invalid link — the referenced record does not exist',
-                '1406': 'Value too long for field — exceeds maximum allowed length',
-                '1264': 'Value out of range for field',
-                '1054': 'Unknown column — field does not exist in this DocType',
-                '1146': 'Table does not exist — DocType may not be installed',
-            }
-            if code in translations:
-                # Try to extract the specific value that caused the error
-                detail_match = re.search(r"'([^']{1,100})'", error_str)
-                detail = f" (value: {detail_match.group(1)})" if detail_match else ""
-                return f"{translations[code]}{detail}"
-            return f"Database error ({code})"
-
-        # 3. ValidationError / LinkValidationError
-        val_match = re.search(r'(?:Validation|LinkValidation)Error:\s*(.+?)(?:\\n|$)', error_str)
-        if val_match:
-            return val_match.group(1).strip()[:500]
-
-        # 4. Unicode escape decode
+                msg = decoded.get("exception") or decoded.get("_server_messages") or str(decoded)
+                # _server_messages is often a JSON-encoded list of JSON strings
+                if isinstance(msg, str) and msg.startswith("["):
+                    try:
+                        msgs = json.loads(msg)
+                        parts = []
+                        for m in msgs:
+                            try:
+                                parts.append(json.loads(m).get("message", m))
+                            except (json.JSONDecodeError, TypeError, AttributeError):
+                                parts.append(str(m))
+                        return " | ".join(parts)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                return str(msg)
+        # Try unicode_escape decode for \uXXXX sequences
         if "\\u0" in error_str:
-            try:
-                return error_str.encode("utf-8").decode("unicode_escape")
-            except Exception:
-                pass
-
+            return error_str.encode("utf-8").decode("unicode_escape")
     except Exception:
         pass
-
-    # Fallback: clean up noise
-    result = error_str
-    result = re.sub(r'https?://[^\s,}"]+', '', result)
-    result = result.replace("\\n", " ").replace('\\"', '"')
-    return result[:500]
+    return error_str
 
 
 def run_import(import_name, start_row=0):
@@ -105,8 +54,12 @@ def run_import(import_name, start_row=0):
     settings = frappe.get_single("AI Settings")
     max_rows = getattr(settings, "max_import_rows", 0) or 0
 
-    # Parse the file
-    file_data = parse_file(file_url=doc.source_file)
+    # Parse the file (or Google Sheet)
+    if getattr(doc, "google_sheet_url", None):
+        from mubtkir_ai_creator.lib.remote_import.preview import parse_google_sheet
+        file_data = parse_google_sheet(doc.google_sheet_url)
+    else:
+        file_data = parse_file(file_url=doc.source_file)
     headers = file_data["headers"]
     rows = file_data["rows"]
 
@@ -142,6 +95,22 @@ def run_import(import_name, start_row=0):
     import_func = _get_import_func(doc.import_type)
 
     for batch_num in range(total_batches):
+        # ── Check if cancelled ──
+        _current_status = frappe.db.get_value("AI Remote Import", import_name, "status")
+        if _current_status == "Cancelled":
+            doc.update_progress(imported, failed, skipped, batch_num + 1)
+            doc.db_set("error_log", json.dumps(errors[-1000:], ensure_ascii=False) if errors else "[]")
+            doc.finish_import("Cancelled")
+            _create_import_log(doc, imported, failed, skipped, errors)
+            frappe.publish_realtime(
+                "import_complete",
+                {"import_name": import_name, "status": "Cancelled", "imported": imported,
+                 "failed": failed, "skipped": skipped,
+                 "total_rows": len(rows), "total_batches": total_batches},
+                user=doc.started_by,
+            )
+            return {"status": "Cancelled", "imported": imported, "failed": failed, "skipped": skipped}
+
         batch_start = batch_num * batch_size + start_row
         batch_end = min(batch_start + batch_size, len(rows))
         batch_rows = rows[batch_start:batch_end]
@@ -169,7 +138,7 @@ def run_import(import_name, start_row=0):
                 doc.db_set("last_successful_row", actual_row)
 
             except Exception as e:
-                error_msg = _decode_error(str(e)[:5000])[:500]
+                error_msg = _decode_error(str(e))[:500]
                 if doc.skip_failed_rows:
                     failed += 1
                     batch_fail += 1

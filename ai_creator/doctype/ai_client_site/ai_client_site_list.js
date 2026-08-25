@@ -2,9 +2,9 @@ frappe.listview_settings['AI Client Site'] = {
 	add_fields: ['status', 'credentials_ready', 'is_active'],
 
 	get_indicator: function (doc) {
-		if (!doc.credentials_ready) return [__('Awaiting Credentials'), 'orange', 'credentials_ready,=,0'];
-		if (doc.status === 'Connected') return [__('Connected'), 'green', 'status,=,Connected'];
-		if (doc.status === 'Failed') return [__('Connection Failed'), 'red', 'status,=,Failed'];
+		if (!doc.credentials_ready) return [__('بانتظار المفاتيح'), 'orange', 'credentials_ready,=,0'];
+		if (doc.status === 'Connected') return [__('متصل'), 'green', 'status,=,Connected'];
+		if (doc.status === 'Failed') return [__('فشل الاتصال'), 'red', 'status,=,Failed'];
 		return [__('لم يُفحص'), 'grey', 'status,=,Unknown'];
 	},
 

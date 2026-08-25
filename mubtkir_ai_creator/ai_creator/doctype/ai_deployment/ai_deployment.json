@@ -1,11 +1,10 @@
 {
  "actions": [],
- "autoname": "naming_series:DEP-.YY.-.MM.-.####",
+ "autoname": "format:DEP-{YY}-{MM}-{####}",
  "creation": "2026-01-01 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
   "tab_details",
   "title",
   "deployment_type",
@@ -22,6 +21,9 @@
   "manual_payload",
   "targets_section",
   "targets",
+  "tab_payload",
+  "payload_section",
+  "resolved_payload",
   "tab_preview",
   "preview_section",
   "preview_summary",
@@ -35,23 +37,9 @@
   "success_count",
   "column_break_4",
   "failed_count",
-  "skipped_count",
-  "tab_payload",
-  "payload_section",
-  "resolved_payload"
+  "skipped_count"
  ],
  "fields": [
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "DEP-.YY.-.MM.-.####",
-   "default": "DEP-.YY.-.MM.-.####",
-   "hidden": 1,
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
-  },
   {
    "fieldname": "tab_details",
    "fieldtype": "Tab Break",
@@ -101,8 +89,8 @@
    "fieldname": "source_mode",
    "fieldtype": "Select",
    "label": "Source Mode",
-   "options": "Copy from Client\nManual\nFrom Template",
-   "default": "Copy from Client",
+   "options": "نسخ من عميل\nتعريف يدوي\nمن قالب",
+   "default": "نسخ من عميل",
    "reqd": 1
   },
   {
@@ -110,15 +98,15 @@
    "fieldtype": "Link",
    "label": "Source Client",
    "options": "AI Client Site",
-   "depends_on": "eval:doc.source_mode=='Copy from Client'",
-   "mandatory_depends_on": "eval:doc.source_mode=='Copy from Client'",
+   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "mandatory_depends_on": "eval:doc.source_mode=='نسخ من عميل'",
    "in_list_view": 1
   },
   {
    "fieldname": "source_record",
    "fieldtype": "Data",
    "label": "Source Record Name",
-   "depends_on": "eval:doc.source_mode=='Copy from Client'",
+   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
    "description": "Print Format name, Custom Field name, or Settings DocType name",
    "mandatory_depends_on": ""
   },
@@ -127,8 +115,8 @@
    "fieldtype": "Link",
    "label": "Template",
    "options": "AI Template",
-   "depends_on": "eval:doc.source_mode=='From Template'",
-   "mandatory_depends_on": "eval:doc.source_mode=='From Template'"
+   "depends_on": "eval:doc.source_mode=='من قالب'",
+   "mandatory_depends_on": "eval:doc.source_mode=='من قالب'"
   },
   {
    "fieldname": "column_break_2",
@@ -143,10 +131,22 @@
   {
    "fieldname": "manual_payload",
    "fieldtype": "Code",
-   "label": "Manual Payload",
+   "label": "Manual Payload (JSON)",
    "options": "JSON",
-   "depends_on": "eval:doc.source_mode=='Manual'",
-   "mandatory_depends_on": "eval:doc.source_mode=='Manual'"
+   "depends_on": "eval:doc.source_mode=='تعريف يدوي'",
+   "mandatory_depends_on": "eval:doc.source_mode=='تعريف يدوي'"
+  },
+  {
+   "fieldname": "payload_section",
+   "fieldtype": "Section Break",
+   "label": ""
+  },
+  {
+   "fieldname": "resolved_payload",
+   "fieldtype": "Code",
+   "label": "Resolved Payload",
+   "options": "JSON",
+   "read_only": 1
   },
   {
    "fieldname": "targets_section",
@@ -242,18 +242,6 @@
    "fieldname": "tab_payload",
    "fieldtype": "Tab Break",
    "label": "Final Payload"
-  },
-  {
-   "fieldname": "payload_section",
-   "fieldtype": "Section Break",
-   "label": ""
-  },
-  {
-   "fieldname": "resolved_payload",
-   "fieldtype": "Code",
-   "label": "Resolved Payload",
-   "options": "JSON",
-   "read_only": 1
   }
  ],
  "links": [],
@@ -286,6 +274,5 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "title_field": "title",
- "track_changes": 1,
- "naming_rule": "By \"Naming Series\" field"
+ "track_changes": 1
 }

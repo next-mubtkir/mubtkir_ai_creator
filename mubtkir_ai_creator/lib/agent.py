@@ -477,13 +477,6 @@ def execute_task(task_name):
     if failed:
         task.db_set("error_message", (error_text or "Unspecified failure")[:1000])
 
-    # Store chat_output — the same JSON the chat bot shows to the user
-    try:
-        chat_out = json.dumps(verification, ensure_ascii=False, indent=2)[:20000]
-        task.db_set("chat_output", chat_out)
-    except Exception:
-        pass
-
     frappe.db.commit()
     return {
         "status": task.status,

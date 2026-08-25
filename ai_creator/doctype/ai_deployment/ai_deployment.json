@@ -110,15 +110,15 @@
    "fieldtype": "Link",
    "label": "Source Client",
    "options": "AI Client Site",
-   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
-   "mandatory_depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "depends_on": "eval:doc.source_mode=='Copy from Client'",
+   "mandatory_depends_on": "eval:doc.source_mode=='Copy from Client'",
    "in_list_view": 1
   },
   {
    "fieldname": "source_record",
    "fieldtype": "Data",
    "label": "Source Record Name",
-   "depends_on": "eval:doc.source_mode=='نسخ من عميل'",
+   "depends_on": "eval:doc.source_mode=='Copy from Client'",
    "description": "Print Format name, Custom Field name, or Settings DocType name",
    "mandatory_depends_on": ""
   },
@@ -127,8 +127,8 @@
    "fieldtype": "Link",
    "label": "Template",
    "options": "AI Template",
-   "depends_on": "eval:doc.source_mode=='من قالب'",
-   "mandatory_depends_on": "eval:doc.source_mode=='من قالب'"
+   "depends_on": "eval:doc.source_mode=='From Template'",
+   "mandatory_depends_on": "eval:doc.source_mode=='From Template'"
   },
   {
    "fieldname": "column_break_2",
@@ -145,8 +145,8 @@
    "fieldtype": "Code",
    "label": "Manual Payload",
    "options": "JSON",
-   "depends_on": "eval:doc.source_mode=='تعريف يدوي'",
-   "mandatory_depends_on": "eval:doc.source_mode=='تعريف يدوي'"
+   "depends_on": "eval:doc.source_mode=='Manual'",
+   "mandatory_depends_on": "eval:doc.source_mode=='Manual'"
   },
   {
    "fieldname": "targets_section",

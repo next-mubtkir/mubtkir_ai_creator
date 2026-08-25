@@ -46,7 +46,12 @@ def _decode_error(error_str):
                         return exc[:500]
 
         # 2. pymysql OperationalError — translate common codes
+        # Match with or without OperationalError prefix (e.g. bare "(1292, ...")
         op_match = re.search(r'OperationalError[:\s]*\((\d+)', error_str)
+        if not op_match:
+            op_match = re.search(r'^\s*\((\d{4}),', error_str)
+        if not op_match:
+            op_match = re.search(r'["\s]\((\d{4}),', error_str)
         if op_match:
             code = op_match.group(1)
             translations = {

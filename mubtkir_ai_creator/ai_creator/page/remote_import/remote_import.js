@@ -558,8 +558,10 @@ class RemoteImportPage {
             // ValidationError / LinkValidationError
             let m = raw.match(/(?:Validation|LinkValidation)Error:\s*(.+?)(?:\\n|",|$)/);
             if (m) return m[1].trim();
-            // OperationalError — match even truncated
+            // OperationalError — match with or without prefix
             m = raw.match(/OperationalError[:\s]*\((\d+)/);
+            if (!m) m = raw.match(/^\s*\((\d{4}),/);
+            if (!m) m = raw.match(/["\s]\((\d{4}),/);
             if (m) {
                 const code = m[1];
                 const valMatch = raw.match(/'([^']{1,80})'/);

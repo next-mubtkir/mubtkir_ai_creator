@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "req_section",
   "naming_series",
   "session",
   "client_site",
@@ -12,7 +13,6 @@
   "status",
   "risk_level",
   "confidence",
-  "req_section",
   "request_text",
   "plan_section",
   "plan",
@@ -28,10 +28,15 @@
   "execution_result",
   "verification_result",
   "error_message",
-  "chat_section",
-  "chat_output"
+  "chat_tab",
+  "chat_output_html"
  ],
  "fields": [
+  {
+   "fieldname": "req_section",
+   "fieldtype": "Tab Break",
+   "label": "Details"
+  },
   {
    "fieldname": "naming_series",
    "fieldtype": "Select",
@@ -85,19 +90,14 @@
    "precision": "2"
   },
   {
-   "fieldname": "req_section",
-   "fieldtype": "Section Break",
-   "label": "Request"
-  },
-  {
    "fieldname": "request_text",
    "fieldtype": "Small Text",
    "label": "Request Text"
   },
   {
    "fieldname": "plan_section",
-   "fieldtype": "Section Break",
-   "label": "Execution Plan"
+   "fieldtype": "Tab Break",
+   "label": "Plan"
   },
   {
    "fieldname": "plan",
@@ -114,7 +114,7 @@
   },
   {
    "fieldname": "approval_section",
-   "fieldtype": "Section Break",
+   "fieldtype": "Tab Break",
    "label": "Approval"
   },
   {
@@ -153,7 +153,7 @@
   },
   {
    "fieldname": "result_section",
-   "fieldtype": "Section Break",
+   "fieldtype": "Tab Break",
    "label": "Result"
   },
   {
@@ -177,17 +177,14 @@
    "read_only": 1
   },
   {
-   "fieldname": "chat_section",
-   "fieldtype": "Section Break",
+   "fieldname": "chat_tab",
+   "fieldtype": "Tab Break",
    "label": "Chat Output"
   },
   {
-   "fieldname": "chat_output",
-   "fieldtype": "Code",
-   "label": "Chat Output",
-   "options": "JSON",
-   "read_only": 1,
-   "description": "The exact JSON response shown in the chat conversation"
+   "fieldname": "chat_output_html",
+   "fieldtype": "HTML",
+   "label": "Chat Output Display"
   }
  ],
  "links": [

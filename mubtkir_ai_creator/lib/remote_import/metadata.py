@@ -57,20 +57,7 @@ def get_doctype_meta(client_site, doctype):
             child_dt = f.get("options")
             if child_dt:
                 try:
-                    child_resp = client.get_meta(child_dt)
-                    child_data = child_resp.get("data", {})
-                    child_fields = []
-                    for cf in child_data.get("fields", []):
-                        if cf.get("fieldtype") in _SKIPPED_FIELDTYPES:
-                            continue
-                        child_fields.append({
-                            "fieldname": cf.get("fieldname"),
-                            "fieldtype": cf.get("fieldtype"),
-                            "label": cf.get("label"),
-                            "reqd": cf.get("reqd", 0),
-                            "options": cf.get("options"),
-                            "is_custom_field": cf.get("is_custom_field", 0),
-                        })
+                    child_fields = _fetch_child_fields(client, child_dt)
                     child_tables[f.get("fieldname")] = {
                         "doctype": child_dt,
                         "fieldname": f.get("fieldname"),
@@ -122,6 +109,65 @@ _SKIPPED_FIELDTYPES = {
     "Section Break", "Column Break", "Tab Break", "Fold",
     "Heading", "HTML", "Button", "Image",
 }
+
+
+def _fetch_child_fields(client, child_dt):
+    """Fetch all fields for a child doctype.
+
+    Uses get_meta first, then falls back to querying DocField directly
+    to ensure ALL fields are returned (get_meta sometimes omits
+    read_only / fetch_from / hidden fields).
+    """
+    child_fields = []
+    seen = set()
+
+    # Primary: get_meta
+    try:
+        child_resp = client.get_meta(child_dt)
+        child_data = child_resp.get("data", {})
+        for cf in child_data.get("fields", []):
+            if cf.get("fieldtype") in _SKIPPED_FIELDTYPES:
+                continue
+            fn = cf.get("fieldname")
+            if fn and fn not in seen:
+                seen.add(fn)
+                child_fields.append({
+                    "fieldname": fn,
+                    "fieldtype": cf.get("fieldtype"),
+                    "label": cf.get("label"),
+                    "reqd": cf.get("reqd", 0),
+                    "mandatory_depends_on": cf.get("mandatory_depends_on", ""),
+                    "options": cf.get("options"),
+                    "is_custom_field": cf.get("is_custom_field", 0),
+                })
+    except Exception:
+        pass
+
+    # Fallback: query DocField table directly for any missing fields
+    try:
+        doc_fields = client.get_list(
+            "DocField",
+            filters={"parent": child_dt, "fieldtype": ["not in", list(_SKIPPED_FIELDTYPES)]},
+            fields=["fieldname", "fieldtype", "label", "reqd", "options", "is_custom_field", "mandatory_depends_on"],
+            limit_page_length=0,
+        )
+        for cf in doc_fields:
+            fn = cf.get("fieldname")
+            if fn and fn not in seen:
+                seen.add(fn)
+                child_fields.append({
+                    "fieldname": fn,
+                    "fieldtype": cf.get("fieldtype"),
+                    "label": cf.get("label"),
+                    "reqd": cf.get("reqd", 0),
+                    "mandatory_depends_on": cf.get("mandatory_depends_on", ""),
+                    "options": cf.get("options"),
+                    "is_custom_field": cf.get("is_custom_field", 0),
+                })
+    except Exception:
+        pass
+
+    return child_fields
 
 
 def _fetch_translations(client, doctype, fields):

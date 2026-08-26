@@ -540,6 +540,7 @@ class RemoteImportPage {
             <div class="ri-actions">
                 <button class="btn btn-danger btn-sm" id="ri-btn-cancel-import">Cancel</button>
                 <button class="btn btn-default btn-sm" id="ri-btn-new-import" style="display:none">New Import</button>
+                <button class="btn btn-success btn-sm" id="ri-btn-reimport-gsheet" style="display:none">🔄 Re-import from Sheet</button>
                 <button class="btn btn-warning btn-sm" id="ri-btn-retry" style="display:none">Retry Failed</button>
                 <button class="btn btn-primary btn-sm" id="ri-btn-resume" style="display:none">Resume</button>
             </div>
@@ -548,6 +549,7 @@ class RemoteImportPage {
         container.find("#ri-btn-new-import").on("click", () => { this.current_step=0; this.import_doc=null; this.meta=null; this.file_data=null; this.file_url=null; this.file_name=null; this.mapping={}; this.render(); });
         container.find("#ri-btn-retry").on("click", () => this.retry_import());
         container.find("#ri-btn-resume").on("click", () => this.resume_import());
+        container.find("#ri-btn-reimport-gsheet").on("click", () => this.reimport_from_gsheet());
         this.start_progress_polling();
     }
 
@@ -597,6 +599,10 @@ class RemoteImportPage {
         $("#ri-import-status").html(`<div style="font-size:18px;font-weight:700;color:var(--${color}-600)">${icon} ${status}</div>`);
         $("#ri-btn-cancel-import").hide();
         $("#ri-btn-new-import").show();
+        // Show Re-import button if source was Google Sheet
+        if (this.import_doc && this.import_doc.google_sheet_url) {
+            $("#ri-btn-reimport-gsheet").show();
+        }
         if (status==="Failed"||status==="Partial Success") { $("#ri-btn-retry").show(); if (d.is_resumable) $("#ri-btn-resume").show(); this.load_errors(); }
     }
 
@@ -672,6 +678,61 @@ class RemoteImportPage {
             method: "mubtkir_ai_creator.api.importer.resume_import",
             args: { import_name: this.import_doc.name },
             callback: () => { frappe.show_alert({ message: "Import resumed", indicator: "blue" }); this.render_import_step(this.wrapper.find(".ri-step-content")); },
+        });
+    }
+
+    reimport_from_gsheet() {
+        frappe.confirm("Re-import latest data from the same Google Sheet with the same mapping?", () => {
+            // Reuse saved mapping and settings from the previous import
+            const prev = this.import_doc;
+            frappe.call({
+                method: "frappe.client.get",
+                args: { doctype: "AI Remote Import", name: prev.name },
+                freeze: true,
+                freeze_message: "Loading previous import settings...",
+                callback: (r) => {
+                    const doc = r.message;
+                    const gsheet_url = doc.google_sheet_url;
+                    if (!gsheet_url) {
+                        frappe.msgprint("No Google Sheet URL found on this import.");
+                        return;
+                    }
+                    // Set state from previous import
+                    this.client_site = doc.client_site;
+                    this.remote_doctype = doc.remote_doctype;
+                    this.google_sheet_url = gsheet_url;
+                    this.file_url = "__google_sheet__";
+                    this.import_type = doc.import_type || "Insert";
+                    try { this.mapping = JSON.parse(doc.column_mapping || "{}"); } catch(e) { this.mapping = {}; }
+
+                    // Fetch fresh data from Google Sheet
+                    frappe.call({
+                        method: "mubtkir_ai_creator.api.importer.preview_google_sheet",
+                        args: { url: gsheet_url, limit: 5 },
+                        freeze: true,
+                        freeze_message: "Reading latest data from Google Sheet...",
+                        callback: (pr) => {
+                            const sheet_data = pr.message;
+                            this.file_data = sheet_data;
+                            this.file_name = sheet_data.file_name;
+
+                            // Load meta then go straight to preview step
+                            frappe.call({
+                                method: "mubtkir_ai_creator.api.importer.get_doctype_meta",
+                                args: { client_site: this.client_site, doctype: this.remote_doctype },
+                                callback: (mr) => {
+                                    this.meta = mr.message;
+                                    this.import_doc = null;
+                                    this.current_step = 3; // Preview step
+                                    this.render();
+                                    frappe.show_alert({ message: `Loaded ${sheet_data.total_rows} rows — review and start import`, indicator: "blue" }, 5);
+                                },
+                            });
+                        },
+                        error: () => { frappe.msgprint("Failed to read Google Sheet — make sure it's still accessible."); },
+                    });
+                },
+            });
         });
     }
 

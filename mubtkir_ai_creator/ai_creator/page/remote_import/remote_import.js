@@ -410,18 +410,61 @@ class RemoteImportPage {
                 <div class="ri-panel-title">Data Preview <span style="font-weight:normal;color:var(--text-muted);font-size:12px">(${this.file_data.total_rows} rows — showing ${Math.min(20,this.file_data.total_rows)})</span></div>
                 <div class="ri-preview-wrapper"><table class="ri-preview-table"><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>
             </div>
+            <div id="ri-validation-panel"></div>
             <div class="ri-panel">
                 <div class="ri-panel-title">Import Options</div>
                 <div id="ri-import-options"></div>
             </div>
             <div class="ri-actions">
                 <button class="btn btn-default btn-sm" id="ri-btn-prev-4">← Back</button>
-                <button class="btn btn-primary btn-sm" id="ri-btn-start-import">Start Import ⚡</button>
+                <button class="btn btn-primary btn-sm" id="ri-btn-start-import" disabled>Start Import ⚡</button>
             </div>
         `);
         this.render_import_options(container.find("#ri-import-options"));
         container.find("#ri-btn-prev-4").on("click", () => this.prev_step());
         container.find("#ri-btn-start-import").on("click", () => this.create_and_start_import());
+
+        // Run pre-import validation
+        const vp = container.find("#ri-validation-panel");
+        vp.html(`<div class="ri-panel"><div class="text-muted" style="padding:12px">Validating data...</div></div>`);
+        const file_source = this.file_url === "__google_sheet__" ? this.google_sheet_url : this.file_url;
+        frappe.call({
+            method: "mubtkir_ai_creator.api.importer.validate_data",
+            args: {
+                file_url: file_source,
+                mapping: JSON.stringify(this.mapping),
+                client_site: this.client_site,
+                doctype: this.remote_doctype,
+            },
+            callback: (r) => {
+                const v = r.message || {};
+                if (v.warnings_count > 0) {
+                    const warn_rows = (v.warnings || []).slice(0, 30).map(w => {
+                        const msgs = (w.warnings || []).map(m => frappe.utils.escape_html(m)).join("<br>");
+                        return `<tr><td style="color:var(--orange-500);font-weight:600;white-space:nowrap;padding:8px 12px">Row ${w.row}</td><td style="padding:8px 12px">${msgs}</td></tr>`;
+                    }).join("");
+                    vp.html(`
+                        <div class="ri-panel">
+                            <div class="ri-panel-title" style="color:var(--orange-600)">⚠ Validation Warnings (${v.warnings_count} rows)</div>
+                            <div style="max-height:250px;overflow-y:auto;border:1px solid var(--border-color);border-radius:var(--border-radius)">
+                                <table style="width:100%;font-size:13px;border-collapse:collapse">
+                                    <thead><tr style="background:var(--bg-light-gray)"><th style="padding:8px 12px;text-align:left">Row</th><th style="padding:8px 12px;text-align:left">Warning</th></tr></thead>
+                                    <tbody>${warn_rows}</tbody>
+                                </table>
+                            </div>
+                            <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">You can still proceed — these are warnings, not blocking errors.</div>
+                        </div>
+                    `);
+                } else {
+                    vp.html(`<div class="ri-panel"><div class="text-success" style="padding:12px;font-size:14px">✓ Validation passed — no issues detected</div></div>`);
+                }
+                container.find("#ri-btn-start-import").prop("disabled", false);
+            },
+            error: () => {
+                vp.html(`<div class="ri-panel"><div class="text-muted" style="padding:12px">Validation skipped — could not connect</div></div>`);
+                container.find("#ri-btn-start-import").prop("disabled", false);
+            },
+        });
     }
 
     render_import_options(container) {
@@ -662,7 +705,7 @@ class RemoteImportPage {
                         <div class="ri-panel"><div class="ri-panel-title">Top Clients</div><table class="ri-preview-table" style="white-space:normal"><thead><tr><th>Client</th><th>Count</th><th>Rows</th></tr></thead><tbody>${top_cl||'<tr><td colspan="3" class="text-muted">No data</td></tr>'}</tbody></table></div>
                     </div>
                 `);
-                this.wrapper.find("#ri-btn-back-wizard").on("click", () => { this.current_step=0; this.render(); });
+                this.wrapper.find("#ri-btn-back-wizard").on("click", () => { this.current_step=0; this.meta=null; this.file_data=null; this.file_url=null; this.file_name=null; this.mapping={}; this.import_doc=null; this.render(); });
             },
         });
     }

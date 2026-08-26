@@ -125,6 +125,25 @@ def run_import(import_name, start_row=0):
 
         for row_idx, row in enumerate(batch_rows):
             actual_row = batch_start + row_idx + 2  # +2 for header row + 0-index
+
+            # Check cancel every 10 rows inside a batch
+            if row_idx > 0 and row_idx % 10 == 0:
+                _mid_status = frappe.db.get_value("AI Remote Import", import_name, "status")
+                if _mid_status == "Cancelled":
+                    doc.db_set("error_log", json.dumps(errors[-1000:], ensure_ascii=False) if errors else "[]")
+                    doc.update_progress(imported, failed, skipped, batch_num + 1)
+                    doc.db_set("is_resumable", 1 if imported else 0)
+                    doc.finish_import("Cancelled")
+                    _create_import_log(doc, imported, failed, skipped, errors)
+                    frappe.publish_realtime(
+                        "import_complete",
+                        {"import_name": import_name, "status": "Cancelled", "imported": imported,
+                         "failed": failed, "skipped": skipped,
+                         "total_rows": len(rows), "total_batches": total_batches},
+                        user=doc.started_by,
+                    )
+                    return {"status": "Cancelled", "imported": imported, "failed": failed, "skipped": skipped}
+
             try:
                 row_data = _build_row_data(headers, row, mapping, doc)
 

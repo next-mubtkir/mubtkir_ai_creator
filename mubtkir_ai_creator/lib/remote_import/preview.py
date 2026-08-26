@@ -163,7 +163,11 @@ def validate_data(file_url, mapping, client_site, doctype):
     """
     from mubtkir_ai_creator.lib.remote_import.metadata import get_doctype_meta
 
-    result = parse_file(file_url=file_url)
+    # Parse file or Google Sheet
+    if file_url and "docs.google.com/spreadsheets" in file_url:
+        result = parse_google_sheet(file_url)
+    else:
+        result = parse_file(file_url=file_url)
     meta = get_doctype_meta(client_site, doctype)
 
     # Build field lookup

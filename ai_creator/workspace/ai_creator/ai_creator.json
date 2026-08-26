@@ -69,7 +69,6 @@
    "dependencies": "",
    "description": "نشر عملية موحّدة على عدة عملاء مع معاينة توافق"
   },
-
   {
    "hidden": 0,
    "is_query_report": 0,
@@ -188,5 +187,6 @@
   }
  ],
  "title": "AI Creator",
- "type": "Workspace"
+ "type": "Workspace",
+ "is_standard": 1
 }

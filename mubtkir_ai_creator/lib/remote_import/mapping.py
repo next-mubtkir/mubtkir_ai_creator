@@ -129,11 +129,14 @@ def get_unmapped_required(client_site, doctype, current_mapping):
 
     unmapped = []
     for f in meta["fields"]:
-        if f.get("reqd") and f["fieldname"] not in mapped_fields and f["fieldname"] != "name":
+        is_required = f.get("reqd")
+        is_conditional = f.get("mandatory_depends_on")
+        if (is_required or is_conditional) and f["fieldname"] not in mapped_fields and f["fieldname"] != "name":
             unmapped.append({
                 "fieldname": f["fieldname"],
                 "label": f.get("label", f["fieldname"]),
                 "fieldtype": f["fieldtype"],
+                "conditional": bool(is_conditional and not is_required),
             })
 
     return unmapped

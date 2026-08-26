@@ -339,14 +339,23 @@ class RemoteImportPage {
             callback: (r) => {
                 const unmapped = r.message || [];
                 const w = container.find("#ri-unmapped-warning");
-                this._has_unmapped_required = unmapped.length > 0;
+                const hard_required = unmapped.filter(f => !f.conditional);
+                const conditional = unmapped.filter(f => f.conditional);
+                this._has_unmapped_required = hard_required.length > 0;
                 container.find("#ri-btn-next-3").prop("disabled", this._has_unmapped_required);
-                if (unmapped.length) {
-                    const fields = unmapped.map(f => f.label || f.fieldname).join(", ");
-                    w.html(`<div class="text-danger" style="font-size:13px">⚠ Unmapped required fields: ${fields}</div>`);
-                } else {
-                    w.html(`<div class="text-success" style="font-size:13px">✓ All required fields are mapped</div>`);
+                let html = "";
+                if (hard_required.length) {
+                    const fields = hard_required.map(f => f.label || f.fieldname).join(", ");
+                    html += `<div class="text-danger" style="font-size:13px;margin-bottom:6px">⚠ Unmapped required fields: ${fields}</div>`;
                 }
+                if (conditional.length) {
+                    const cfields = conditional.map(f => f.label || f.fieldname).join(", ");
+                    html += `<div class="text-warning" style="font-size:13px">⚠ Conditionally required fields (may cause errors): ${cfields}</div>`;
+                }
+                if (!hard_required.length && !conditional.length) {
+                    html = `<div class="text-success" style="font-size:13px">✓ All required fields are mapped</div>`;
+                }
+                w.html(html);
             },
         });
     }

@@ -179,6 +179,19 @@ def validate_data(file_url, mapping, client_site, doctype):
         mapping = json.loads(mapping)
 
     warnings = []
+
+    # Check for required/conditional fields that are NOT mapped at all
+    mapped_targets = set(v for v in mapping.values() if v)
+    for fn, fi in field_lookup.items():
+        if fn == "name":
+            continue
+        is_required = fi.get("reqd")
+        is_conditional = fi.get("mandatory_depends_on")
+        if (is_required or is_conditional) and fn not in mapped_targets:
+            label = fi.get("label", fn)
+            kind = "Required" if is_required else "Conditionally required"
+            warnings.append({"row": 0, "warnings": [f"{kind} field '{label}' is not mapped to any column in the file"]})
+
     for row_idx, row in enumerate(result["rows"], start=2):  # 2 = Excel row (header is 1)
         row_warnings = []
         for col_idx, header in enumerate(result["headers"]):

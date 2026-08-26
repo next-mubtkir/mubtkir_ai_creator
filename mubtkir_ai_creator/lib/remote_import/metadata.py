@@ -45,6 +45,7 @@ def get_doctype_meta(client_site, doctype):
             "translated_label": translated,
             "display_label": translated or label,  # Arabic first, fallback English
             "reqd": f.get("reqd", 0),
+            "mandatory_depends_on": f.get("mandatory_depends_on", ""),
             "options": f.get("options"),
             "default": f.get("default"),
             "is_custom_field": f.get("is_custom_field", 0),

@@ -262,5 +262,6 @@
   }
  ],
  "title": "AI Creator",
- "type": "Workspace"
+ "type": "Workspace",
+ "is_standard": 1
 }

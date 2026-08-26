@@ -145,12 +145,13 @@ def _fetch_child_fields(client, child_dt):
 
     # Fallback: query DocField table directly for any missing fields
     try:
-        doc_fields = client.get_list(
+        resp = client.get_list(
             "DocField",
             filters={"parent": child_dt, "fieldtype": ["not in", list(_SKIPPED_FIELDTYPES)]},
             fields=["fieldname", "fieldtype", "label", "reqd", "options", "is_custom_field", "mandatory_depends_on"],
-            limit_page_length=0,
+            limit=0,
         )
+        doc_fields = resp.get("data", []) if isinstance(resp, dict) else resp
         for cf in doc_fields:
             fn = cf.get("fieldname")
             if fn and fn not in seen:

@@ -137,6 +137,77 @@ def capture_all(client_site, target_doctype=None, artifact_types=None):
     return {"captured": len(results), "items": results, "errors": errors}
 
 
+def capture_batch(client_site, artifact_type, source_names, title=None, notes=None):
+    """التقاط عدة عناصر من نفس النوع وحفظها في قالب AI Template واحد."""
+    if artifact_type not in ARTIFACTS:
+        frappe.throw(f"Unsupported type: {artifact_type}")
+
+    if not source_names:
+        frappe.throw("لم يتم تحديد أي عناصر")
+
+    client = FrappeSiteClient(client_site)
+    doctype = ARTIFACTS[artifact_type]["doctype"]
+
+    items = []
+    target_doctypes = set()
+
+    for source_name in source_names:
+        doc = client.get_doc(doctype, source_name).get("data") or {}
+        if not doc:
+            frappe.throw(f"لم يُعثر على «{source_name}» لدى العميل")
+
+        payload = {k: v for k, v in doc.items() if k not in STRIP_FIELDS and v is not None}
+        items.append({"source_name": source_name, "data": payload})
+
+        td = doc.get("dt") or doc.get("doc_type") or doc.get("reference_doctype") or ""
+        if td:
+            target_doctypes.add(td)
+
+    names_joined = ", ".join(source_names)
+    batch_title = title or f"{artifact_type}: {len(source_names)} items"
+
+    previous = frappe.db.get_value(
+        "AI Template",
+        {"source_client": client_site, "artifact_type": artifact_type, "source_name": ["like", "batch:%"]},
+        ["name", "version"],
+        order_by="version desc",
+        as_dict=True,
+    )
+    version = (previous.version + 1) if previous else 1
+
+    tpl = frappe.get_doc({
+        "doctype": "AI Template",
+        "title": batch_title,
+        "artifact_type": artifact_type,
+        "source_client": client_site,
+        "source_name": f"batch: {names_joined}"[:140],
+        "target_doctype": ", ".join(sorted(target_doctypes))[:140] if target_doctypes else "",
+        "payload": json.dumps(items, ensure_ascii=False, indent=2),
+        "version": version,
+        "previous_version": previous.name if previous else None,
+        "deployable": 1 if ARTIFACTS[artifact_type]["deployable"] else 0,
+        "captured_on": now_datetime(),
+        "notes": notes or f"التقاط دُفعة — {len(source_names)} عنصر",
+    })
+    tpl.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"template": tpl.name, "version": version, "count": len(items), "deployable": bool(tpl.deployable)}
+
+
+@frappe.whitelist()
+def run_capture_batch(client_site, artifact_type, source_names):
+    """التقاط عدة عناصر دفعة واحدة — عنصر واحد = قالب عادي، أكثر = قالب مجمّع."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+    if isinstance(source_names, str):
+        source_names = json.loads(source_names)
+    if len(source_names) == 1:
+        result = capture(client_site, artifact_type, source_names[0])
+        result["count"] = 1
+        return result
+    return capture_batch(client_site, artifact_type, source_names)
+
+
 @frappe.whitelist()
 def run_capture(client_site, artifact_type, source_name, title=None, notes=None):
     frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])

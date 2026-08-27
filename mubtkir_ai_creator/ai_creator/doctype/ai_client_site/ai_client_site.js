@@ -27,7 +27,7 @@ frappe.ui.form.on('AI Client Site', {
 			});
 		});
 
-		// ===== 2. Capture Customization واحد =====
+		// ===== 2. Capture Customization =====
 		frm.add_custom_button(__('Capture Customization'), function () {
 			const d = new frappe.ui.Dialog({
 				title: __('Capture Customization from this Client'),
@@ -42,56 +42,119 @@ frappe.ui.form.on('AI Client Site', {
 					},
 					{ fieldname: 'target_doctype', label: __('Filter by DocType (optional)'), fieldtype: 'Data' },
 					{ fieldname: 'load', label: __('Browse Available'), fieldtype: 'Button' },
-					{ fieldname: 'select_all', label: __('Select All'), fieldtype: 'Button', hidden: 1 },
 					{ fieldname: 'results', fieldtype: 'HTML' },
 				],
+				primary_action_label: __('Capture Selected'),
+				primary_action: function () {
+					const checked = getCheckedRows();
+					if (!checked.length) {
+						frappe.show_alert({ message: __('اختر عنصر واحد على الأقل'), indicator: 'orange' });
+						return;
+					}
+					frappe.dom.freeze(__('جارٍ الالتقاط...'));
+					frappe.call({
+						method: 'mubtkir_ai_creator.lib.templates.run_capture_batch',
+						args: {
+							client_site: frm.doc.name,
+							artifact_type: d.get_value('artifact_type'),
+							source_names: checked.map(r => r.name),
+						},
+						callback: function (res) {
+							frappe.dom.unfreeze();
+							const m = res.message || {};
+							frappe.show_alert({
+								message: __('تم إنشاء قالب «{0}» — يحتوي {1} عنصر (النسخة {2})', [m.template, m.count, m.version]),
+								indicator: 'green',
+							}, 8);
+							d.hide();
+						},
+						error: function () {
+							frappe.dom.unfreeze();
+						},
+					});
+				},
 			});
 
 			let lastRows = [];
 
-			function captureOne(row, onDone) {
-				frappe.call({
-					method: 'mubtkir_ai_creator.lib.templates.run_capture',
-					args: {
-						client_site: frm.doc.name,
-						artifact_type: d.get_value('artifact_type'),
-						source_name: row.name,
-					},
-					callback: function (res) { onDone(null, res.message); },
-					error: function (err) { onDone(err, null); },
+			function getCheckedRows() {
+				const names = [];
+				d.$wrapper.find('.capture-check:checked').each(function () {
+					const n = $(this).data('name');
+					const row = lastRows.find(r => r.name === n);
+					if (row) names.push(row);
 				});
+				return names;
+			}
+
+			function updateCounter() {
+				const total = d.$wrapper.find('.capture-check').length;
+				const checked = d.$wrapper.find('.capture-check:checked').length;
+				d.$wrapper.find('.capture-counter').text(
+					checked ? __('محدد {0} من {1}', [checked, total]) : ''
+				);
+				// Enable/disable primary button
+				d.set_primary_action_enabled(checked > 0);
 			}
 
 			function renderResults(rows) {
 				lastRows = rows;
+				const $wrapper = d.fields_dict.results.$wrapper;
+
 				if (!rows.length) {
-					d.fields_dict.results.$wrapper.html('<div dir="rtl">لا توجد عناصر من هذا Type</div>');
-					d.set_df_property('select_all', 'hidden', 1);
+					$wrapper.html('<div class="text-muted text-center p-4">لا توجد عناصر من هذا النوع</div>');
+					d.set_primary_action_enabled(false);
 					return;
 				}
-				d.set_df_property('select_all', 'hidden', 0);
-				const $list = $('<div dir="rtl" style="max-height:300px;overflow:auto;"></div>');
-				rows.forEach((row) => {
-					const $item = $(`
-						<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);">
-							<span>${frappe.utils.escape_html(row.name)}</span>
-							<button class="btn btn-xs btn-default">Capture</button>
+
+				const $container = $(`
+					<div>
+						<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:2px solid var(--border-color);">
+							<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-weight:600;">
+								<input type="checkbox" class="select-all-check">
+								${__('تحديد الكل')} (<span class="items-count">${rows.length}</span>)
+							</label>
+							<span class="capture-counter text-muted" style="margin-right:auto;font-size:12px;"></span>
 						</div>
+						<div class="capture-list" style="max-height:300px;overflow:auto;"></div>
+					</div>
+				`);
+
+				const $list = $container.find('.capture-list');
+
+				rows.forEach((row) => {
+					const displayName = frappe.utils.escape_html(row.name);
+					const extraInfo = row.dt || row.doc_type || row.reference_doctype || '';
+					const $item = $(`
+						<label style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border-color);cursor:pointer;margin:0;">
+							<input type="checkbox" class="capture-check" data-name="${frappe.utils.escape_html(row.name)}">
+							<span style="flex:1;">${displayName}</span>
+							${extraInfo ? '<span class="text-muted" style="font-size:12px;">' + frappe.utils.escape_html(extraInfo) + '</span>' : ''}
+						</label>
 					`);
-					$item.find('button').on('click', function () {
-						const $btn = $(this);
-						$btn.prop('disabled', true);
-						captureOne(row, function (err, m) {
-							if (err) { $btn.prop('disabled', false); return; }
-							$btn.replaceWith('<span class="text-muted">Done — version ' + (m.version || '') + '</span>');
-						});
-					});
 					$list.append($item);
 				});
-				d.fields_dict.results.$wrapper.empty().append($list);
+
+				// Select All toggle
+				$container.find('.select-all-check').on('change', function () {
+					const isChecked = $(this).prop('checked');
+					$list.find('.capture-check').prop('checked', isChecked);
+					updateCounter();
+				});
+
+				// Individual checkbox change
+				$container.on('change', '.capture-check', function () {
+					const total = $list.find('.capture-check').length;
+					const checked = $list.find('.capture-check:checked').length;
+					$container.find('.select-all-check').prop('checked', checked === total);
+					updateCounter();
+				});
+
+				$wrapper.empty().append($container);
+				d.set_primary_action_enabled(false);
 			}
 
-			// Show dialog FIRST, then bind events (Button $input only exists after render)
+			d.set_primary_action_enabled(false);
 			d.show();
 
 			// Bind load button
@@ -106,27 +169,6 @@ frappe.ui.form.on('AI Client Site', {
 					freeze: true,
 					callback: function (r) { renderResults(r.message || []); },
 				});
-			});
-
-			// Bind select all button
-			d.fields_dict.select_all.$input.off('click').on('click', function () {
-				if (!lastRows.length) return;
-				frappe.confirm(
-					__('Capture all displayed items ({0}) as templates?', [lastRows.length]),
-					function () {
-						let done = 0, failed = 0;
-						frappe.dom.freeze(__('Capturing...'));
-						const next = (i) => {
-							if (i >= lastRows.length) {
-								frappe.dom.unfreeze();
-								frappe.show_alert({ message: __('Done — succeeded {0}، failed {1}', [done, failed]), indicator: failed ? 'orange' : 'green' }, 6);
-								return;
-							}
-							captureOne(lastRows[i], function (err) { if (err) failed++; else done++; next(i + 1); });
-						};
-						next(0);
-					}
-				);
 			});
 
 		}, __('Templates'));

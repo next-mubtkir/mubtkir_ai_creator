@@ -5,6 +5,7 @@ import json
 import frappe
 
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
+from mubtkir_ai_creator.ai_creator.doctype.ai_settings.ai_settings import get_limits
 
 # مستويات الخطورة: low = تنفيذ مباشر، medium/high = تحتاج موافقة
 TOOLS = {}
@@ -90,9 +91,11 @@ def get_document(client, doctype, name):
         "required": ["doctype"],
     },
 )
-def list_documents(client, doctype, fields=None, filters=None, limit=20):
+def list_documents(client, doctype, fields=None, filters=None, limit=None, order_by=None):
+    lim = get_limits()
+    effective = min(limit or lim["list_documents_default_limit"], lim["list_documents_max_limit"])
     return client.get_list(
-        doctype, fields=fields or ["name"], filters=filters, limit=min(limit or 20, 100)
+        doctype, fields=fields or ["name"], filters=filters, limit=effective, order_by=order_by
     ).get("data")
 
 
@@ -111,14 +114,14 @@ def inspect_customizations(client, doctype=None):
         "Custom Field",
         fields=["name", "dt", "fieldname", "label", "fieldtype", "options", "insert_after"],
         filters=filters,
-        limit=100,
+        limit=get_limits()["inspect_customizations_limit"],
     ).get("data")
     ps_filters = {"doc_type": doctype} if doctype else None
     ps = client.get_list(
         "Property Setter",
         fields=["name", "doc_type", "field_name", "property", "value"],
         filters=ps_filters,
-        limit=100,
+        limit=get_limits()["inspect_customizations_limit"],
     ).get("data")
     return {"custom_fields": cf, "property_setters": ps}
 
@@ -138,13 +141,13 @@ def inspect_customizations(client, doctype=None):
 )
 def diagnose_permissions(client, user, doctype):
     roles = client.get_list(
-        "Has Role", fields=["role"], filters={"parent": user}, limit=100
+        "Has Role", fields=["role"], filters={"parent": user}, limit=get_limits()["diagnose_permissions_limit"]
     ).get("data")
     perms = client.get_list(
         "Custom DocPerm",
         fields=["role", "read", "write", "create", "submit", "cancel", "amend", "permlevel"],
         filters={"parent": doctype},
-        limit=100,
+        limit=get_limits()["inspect_customizations_limit"],
     ).get("data")
     return {"user": user, "roles": roles, "doctype": doctype, "permissions": perms}
 
@@ -166,7 +169,7 @@ def diagnose_permissions(client, user, doctype):
 def list_link_options(client, doctype, search=None, limit=20):
     filters = {"name": ["like", f"%{search}%"]} if search else None
     rows = client.get_list(
-        doctype, fields=["name"], filters=filters, limit=min(limit or 20, 50)
+        doctype, fields=["name"], filters=filters, limit=min(limit or 20, get_limits()["link_options_limit"])
     ).get("data") or []
     return {"doctype": doctype, "count": len(rows), "options": [r.get("name") for r in rows]}
 
@@ -214,7 +217,7 @@ def check_links(client, doctype, data):
             valid[fieldname] = value
         else:
             try:
-                available = client.get_list(target, fields=["name"], limit=15).get("data") or []
+                available = client.get_list(target, fields=["name"], limit=get_limits()["available_options_shown"]).get("data") or []
             except Exception:
                 available = []
             invalid[fieldname] = {
@@ -266,7 +269,7 @@ def describe_required(client, doctype, with_options=True):
         if f.get("reqd"):
             if with_options and info["link_to"]:
                 try:
-                    rows = client.get_list(info["link_to"], fields=["name"], limit=15).get("data") or []
+                    rows = client.get_list(info["link_to"], fields=["name"], limit=get_limits()["available_options_shown"]).get("data") or []
                     info["available_options"] = [r.get("name") for r in rows]
                 except Exception:
                     info["available_options"] = []
@@ -315,7 +318,7 @@ def find_missing_required(client, doctype, data):
     },
 )
 def find_document_name(client, doctype, filters):
-    rows = client.get_list(doctype, fields=["name"], filters=filters, limit=5).get("data") or []
+    rows = client.get_list(doctype, fields=["name"], filters=filters, limit=get_limits()["find_document_name_limit"]).get("data") or []
     return {"doctype": doctype, "filters": filters, "matches": [r.get("name") for r in rows]}
 
 
@@ -659,7 +662,7 @@ def list_client_sites(client, search=None):
         filters=filters,
         fields=["name", "client_name", "site_url"],
         order_by="client_name asc",
-        limit_page_length=200,
+        limit_page_length=get_limits()["list_client_sites_limit"],
     )
 
 
@@ -901,7 +904,7 @@ def search_past_tasks(client, search, limit=10):
         },
         fields=["name", "request_text", "status", "creation"],
         order_by="creation desc",
-        limit_page_length=min(limit, 20),
+        limit_page_length=min(limit, get_limits()["search_past_tasks_limit"]),
     )
 
 
@@ -1088,6 +1091,261 @@ def _get_import_status(client, import_name):
 
 
 # ---------------- Helpers ----------------
+
+# ============================================================
+# أدوات جماعية — تعمل بالكامل في الباكند بدل حلقة الموديل
+# ============================================================
+
+@tool(
+    "search_in_content",
+    "low",
+    "بحث نصي داخل محتوى حقل معين (مثل script أو html) في كل مستندات DocType محدد. "
+    "يرجع أسماء المستندات التي تحتوي على أي من الكلمات المطلوبة مع السطر الذي وُجدت فيه. "
+    "أسرع بكثير من قراءة كل مستند على حدة عبر get_document.",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string", "description": "DocType to search in (e.g. Custom HTML Block, Client Script, Print Format)"},
+            "fieldname": {"type": "string", "description": "Field name to search within (e.g. script, html, css)"},
+            "keywords": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of keywords to search for (OR logic — any match counts)",
+            },
+            "filters": {"type": "object", "description": "Optional filters to narrow the document list"},
+        },
+        "required": ["doctype", "fieldname", "keywords"],
+    },
+)
+def search_in_content(client, doctype, fieldname, keywords, filters=None):
+    lim = get_limits()
+    rows = client.get_list(
+        doctype, fields=["name", fieldname], filters=filters,
+        limit=lim["list_documents_max_limit"] * 10,  # read more since this is search
+    ).get("data") or []
+
+    results = []
+    for row in rows:
+        content = row.get(fieldname) or ""
+        if not content:
+            continue
+        matched_keywords = [kw for kw in keywords if kw in content]
+        if matched_keywords:
+            # Extract matching lines for context
+            lines = content.split("\n")
+            matching_lines = []
+            for i, line in enumerate(lines):
+                for kw in matched_keywords:
+                    if kw in line:
+                        matching_lines.append({"line": i + 1, "text": line.strip()[:200]})
+                        break
+            results.append({
+                "name": row.get("name"),
+                "matched_keywords": matched_keywords,
+                "matching_lines": matching_lines[:10],
+            })
+
+    return {"doctype": doctype, "fieldname": fieldname, "keywords": keywords, "total_searched": len(rows), "matches": results}
+
+
+@tool(
+    "bulk_find_replace",
+    "high",
+    "بحث واستبدال نصي في حقل معين عبر عدة مستندات دفعة واحدة. يبحث في كل المستندات المطابقة "
+    "للفلاتر ويستبدل النص في الباكند بدون الحاجة لاستدعاء patch_document_field لكل مستند. "
+    "يرجع تقريرًا بعدد المستندات المعدلة والفاشلة.",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string"},
+            "fieldname": {"type": "string", "description": "Field to find-replace in (e.g. script, html, css)"},
+            "replacements": {
+                "type": "object",
+                "description": "Map of find→replace pairs, e.g. {\"الصنف\": \"المنتج\", \"أصناف\": \"منتجات\"}",
+            },
+            "filters": {"type": "object", "description": "Optional filters to narrow the document list"},
+            "names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional: specific document names to target instead of using filters",
+            },
+        },
+        "required": ["doctype", "fieldname", "replacements"],
+    },
+)
+def bulk_find_replace(client, doctype, fieldname, replacements, filters=None, names=None):
+    if not replacements:
+        return {"error": "No replacements specified"}
+
+    lim = get_limits()
+    if names:
+        docs = [{"name": n} for n in names]
+    else:
+        docs = client.get_list(
+            doctype, fields=["name"], filters=filters,
+            limit=lim["list_documents_max_limit"] * 10,
+        ).get("data") or []
+
+    updated, skipped, errors = [], [], []
+    for doc_ref in docs:
+        doc_name = doc_ref.get("name")
+        try:
+            full_doc = client.get_doc(doctype, doc_name).get("data") or {}
+            content = full_doc.get(fieldname) or ""
+            if not content:
+                skipped.append(doc_name)
+                continue
+
+            new_content = content
+            applied = {}
+            for find_text, replace_text in replacements.items():
+                count = new_content.count(find_text)
+                if count > 0:
+                    new_content = new_content.replace(find_text, replace_text)
+                    applied[find_text] = count
+
+            if not applied:
+                skipped.append(doc_name)
+                continue
+
+            client.update_doc(doctype, doc_name, {fieldname: new_content})
+            updated.append({"name": doc_name, "replacements": applied})
+        except Exception as e:
+            errors.append({"name": doc_name, "error": str(e)[:200]})
+
+    return {
+        "doctype": doctype,
+        "fieldname": fieldname,
+        "total_processed": len(docs),
+        "updated": len(updated),
+        "skipped": len(skipped),
+        "failed": len(errors),
+        "details": updated,
+        "errors": errors[:20],
+    }
+
+
+@tool(
+    "bulk_operation",
+    "high",
+    "تنفيذ عملية جماعية (حذف/اعتماد/إلغاء) على عدة مستندات دفعة واحدة بالكامل في الباكند. "
+    "أسرع بكثير من استدعاء delete_document/submit_document/cancel_document لكل مستند. "
+    "يرجع تقريرًا بالنتائج.",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string"},
+            "operation": {
+                "type": "string",
+                "enum": ["delete", "submit", "cancel"],
+                "description": "Operation to perform on all matching documents",
+            },
+            "filters": {"type": "object", "description": "Filters to select documents (e.g. {\"item_group\": \"X\"})"},
+            "names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional: specific document names instead of filters",
+            },
+        },
+        "required": ["doctype", "operation"],
+    },
+)
+def bulk_operation(client, doctype, operation, filters=None, names=None):
+    if not filters and not names:
+        return {"error": "Must provide either filters or names"}
+
+    lim = get_limits()
+    if names:
+        doc_names = names
+    else:
+        rows = client.get_list(
+            doctype, fields=["name"], filters=filters,
+            limit=lim["list_documents_max_limit"] * 50,  # allow up to 5000
+        ).get("data") or []
+        doc_names = [r.get("name") for r in rows]
+
+    if not doc_names:
+        return {"doctype": doctype, "operation": operation, "total": 0, "message": "No documents matched"}
+
+    succeeded, failed = [], []
+    for doc_name in doc_names:
+        try:
+            if operation == "delete":
+                client.delete_doc(doctype, doc_name)
+            elif operation == "submit":
+                client.update_doc(doctype, doc_name, {"docstatus": 1})
+            elif operation == "cancel":
+                client.call_method("frappe.client.cancel", {"doctype": doctype, "name": doc_name})
+            succeeded.append(doc_name)
+        except Exception as e:
+            failed.append({"name": doc_name, "error": str(e)[:200]})
+
+    return {
+        "doctype": doctype,
+        "operation": operation,
+        "total": len(doc_names),
+        "succeeded": len(succeeded),
+        "failed": len(failed),
+        "errors": failed[:20],
+    }
+
+
+@tool(
+    "bulk_update",
+    "high",
+    "تعديل حقل أو حقول في عدة مستندات دفعة واحدة بالكامل في الباكند. "
+    "أسرع من استدعاء update_document لكل مستند على حدة. يرجع تقريرًا بالنتائج.",
+    {
+        "type": "object",
+        "properties": {
+            "doctype": {"type": "string"},
+            "data": {"type": "object", "description": "Fields to update in all matching documents (e.g. {\"disabled\": 1})"},
+            "filters": {"type": "object", "description": "Filters to select documents"},
+            "names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional: specific document names instead of filters",
+            },
+        },
+        "required": ["doctype", "data"],
+    },
+)
+def bulk_update(client, doctype, data, filters=None, names=None):
+    if not data:
+        return {"error": "No update data specified"}
+    if not filters and not names:
+        return {"error": "Must provide either filters or names"}
+
+    lim = get_limits()
+    if names:
+        doc_names = names
+    else:
+        rows = client.get_list(
+            doctype, fields=["name"], filters=filters,
+            limit=lim["list_documents_max_limit"] * 50,
+        ).get("data") or []
+        doc_names = [r.get("name") for r in rows]
+
+    if not doc_names:
+        return {"doctype": doctype, "total": 0, "message": "No documents matched"}
+
+    succeeded, failed = [], []
+    for doc_name in doc_names:
+        try:
+            client.update_doc(doctype, doc_name, data)
+            succeeded.append(doc_name)
+        except Exception as e:
+            failed.append({"name": doc_name, "error": str(e)[:200]})
+
+    return {
+        "doctype": doctype,
+        "total": len(doc_names),
+        "succeeded": len(succeeded),
+        "failed": len(failed),
+        "updated_fields": list(data.keys()),
+        "errors": failed[:20],
+    }
+
 
 def get_tool_definitions():
     """إرجاع تعريفات الأدوات بصيغة Tool Calling."""

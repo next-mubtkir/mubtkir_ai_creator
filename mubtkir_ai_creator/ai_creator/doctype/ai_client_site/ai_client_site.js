@@ -5,7 +5,7 @@ frappe.ui.form.on('AI Client Site', {
 		// ===== 1. Test Connection =====
 		frm.add_custom_button(__('Test Connection'), function () {
 			frm.dashboard.clear_headline();
-			frappe.dom.freeze(__('جارٍ Test Connection...'));
+			frappe.dom.freeze(__('Testing connection...'));
 			frappe.call({
 				method: 'mubtkir_ai_creator.ai_creator.doctype.ai_client_site.ai_client_site.test_connection',
 				args: { name: frm.doc.name },
@@ -16,8 +16,8 @@ frappe.ui.form.on('AI Client Site', {
 					frm.dashboard.set_headline_alert(
 						`<span class="indicator ${m.ok ? 'green' : 'red'}">${
 							m.ok
-								? 'متصل — Frappe ' + (m.frappe_version || '') + ' / ERPNext ' + (m.erpnext_version || '')
-								: 'failed — ' + (m.error || '')
+								? 'Connected — Frappe ' + (m.frappe_version || '') + ' / ERPNext ' + (m.erpnext_version || '')
+								: 'Failed — ' + (m.error || '')
 						}</span>`
 					);
 				},
@@ -47,7 +47,7 @@ frappe.ui.form.on('AI Client Site', {
 					{ fieldname: 'load', label: __('Browse Available'), fieldtype: 'Button' },
 					{ fieldname: 'results', fieldtype: 'HTML' },
 				],
-				primary_action_label: __('التقاط المحدد'),
+				primary_action_label: __('Capture Selected'),
 				primary_action: function () {
 					const checked = [];
 					d.$wrapper.find('.capture-check:checked').each(function () {
@@ -56,11 +56,11 @@ frappe.ui.form.on('AI Client Site', {
 					});
 
 					if (!checked.length) {
-						frappe.show_alert({ message: __('اختر عنصر واحد على الأقل'), indicator: 'orange' });
+						frappe.show_alert({ message: __('Select at least one item'), indicator: 'orange' });
 						return;
 					}
 
-					frappe.dom.freeze(__('جارٍ الالتقاط...'));
+					frappe.dom.freeze(__('Capturing...'));
 					frappe.call({
 						method: 'mubtkir_ai_creator.lib.templates.run_capture_batch',
 						args: {
@@ -72,7 +72,7 @@ frappe.ui.form.on('AI Client Site', {
 							frappe.dom.unfreeze();
 							const m = res.message || {};
 							frappe.show_alert({
-								message: __('تم إنشاء القالب «{0}» — يحتوي {1} عنصر (النسخة {2})', [m.template, m.count, m.version]),
+								message: __('Template "{0}" created — {1} item(s), version {2}', [m.template, m.count, m.version]),
 								indicator: 'green',
 							}, 8);
 							d.hide();
@@ -89,7 +89,7 @@ frappe.ui.form.on('AI Client Site', {
 				const $wrapper = d.fields_dict.results.$wrapper;
 
 				if (!rows.length) {
-					$wrapper.html('<div class="text-muted text-center" style="padding:20px;">لا توجد عناصر من هذا النوع</div>');
+					$wrapper.html('<div class="text-muted text-center" style="padding:20px;">No items found for this type</div>');
 					d.get_primary_btn().prop('disabled', true);
 					return;
 				}
@@ -100,7 +100,7 @@ frappe.ui.form.on('AI Client Site', {
 				const $toolbar = $(`
 					<div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:2px solid var(--border-color);margin-bottom:4px;">
 						<input type="checkbox" class="select-all-check" style="width:16px;height:16px;cursor:pointer;">
-						<b>${__('تحديد الكل')} (${rows.length})</b>
+						<b>${__('Select All')} (${rows.length})</b>
 						<span class="capture-counter text-muted" style="margin-right:auto;font-size:12px;"></span>
 					</div>
 				`);
@@ -141,7 +141,7 @@ frappe.ui.form.on('AI Client Site', {
 					const total = $list.find('.capture-check').length;
 					const checked = $list.find('.capture-check:checked').length;
 					$container.find('.capture-counter').text(
-						checked ? __('محدد {0} من {1}', [checked, total]) : ''
+						checked ? __('Selected {0} of {1}', [checked, total]) : ''
 					);
 					d.get_primary_btn().prop('disabled', checked === 0);
 				}

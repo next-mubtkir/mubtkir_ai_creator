@@ -6,6 +6,7 @@ import frappe
 from frappe.utils import now_datetime
 
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
+from mubtkir_ai_creator.ai_creator.doctype.ai_settings.ai_settings import get_limits
 
 # ما يمكن التقاطه، وهل يُسمح بنشره على عملاء آخرين
 ARTIFACTS = {
@@ -28,7 +29,7 @@ STRIP_FIELDS = {
 }
 
 
-def list_available(client_site, artifact_type, target_doctype=None, limit=100):
+def list_available(client_site, artifact_type, target_doctype=None, limit=None):
     """استعراض ما يمكن التقاطه لدى العميل قبل الاختيار."""
     client = FrappeSiteClient(client_site)
     doctype = ARTIFACTS.get(artifact_type, {}).get("doctype", artifact_type)
@@ -49,7 +50,8 @@ def list_available(client_site, artifact_type, target_doctype=None, limit=100):
     fields, filter_key = field_map.get(artifact_type, (["name"], None))
     filters = {filter_key: target_doctype} if target_doctype and filter_key else None
 
-    return client.get_list(doctype, fields=fields, filters=filters, limit=limit).get("data") or []
+    effective_limit = limit or get_limits()["list_available_limit"]
+    return client.get_list(doctype, fields=fields, filters=filters, limit=effective_limit).get("data") or []
 
 
 def list_artifact_types(client_site):
@@ -60,7 +62,7 @@ def list_artifact_types(client_site):
         "DocType",
         fields=["name"],
         filters={"istable": 0, "issingle": 0},
-        limit=1000,
+        limit=get_limits()["list_artifact_types_limit"],
         order_by="name asc",
     ).get("data") or []
     others = sorted({r.get("name") for r in rows if r.get("name") and r.get("name") not in known})
@@ -137,77 +139,6 @@ def capture_all(client_site, target_doctype=None, artifact_types=None):
     return {"captured": len(results), "items": results, "errors": errors}
 
 
-def capture_batch(client_site, artifact_type, source_names, title=None, notes=None):
-    """التقاط عدة عناصر من نفس النوع وحفظها في قالب AI Template واحد."""
-    if artifact_type not in ARTIFACTS:
-        frappe.throw(f"Unsupported type: {artifact_type}")
-
-    if not source_names:
-        frappe.throw("لم يتم تحديد أي عناصر")
-
-    client = FrappeSiteClient(client_site)
-    doctype = ARTIFACTS[artifact_type]["doctype"]
-
-    items = []
-    target_doctypes = set()
-
-    for source_name in source_names:
-        doc = client.get_doc(doctype, source_name).get("data") or {}
-        if not doc:
-            frappe.throw(f"لم يُعثر على «{source_name}» لدى العميل")
-
-        payload = {k: v for k, v in doc.items() if k not in STRIP_FIELDS and v is not None}
-        items.append({"source_name": source_name, "data": payload})
-
-        td = doc.get("dt") or doc.get("doc_type") or doc.get("reference_doctype") or ""
-        if td:
-            target_doctypes.add(td)
-
-    names_joined = ", ".join(source_names)
-    batch_title = title or f"{artifact_type}: {len(source_names)} items"
-
-    previous = frappe.db.get_value(
-        "AI Template",
-        {"source_client": client_site, "artifact_type": artifact_type, "source_name": ["like", "batch:%"]},
-        ["name", "version"],
-        order_by="version desc",
-        as_dict=True,
-    )
-    version = (previous.version + 1) if previous else 1
-
-    tpl = frappe.get_doc({
-        "doctype": "AI Template",
-        "title": batch_title,
-        "artifact_type": artifact_type,
-        "source_client": client_site,
-        "source_name": f"batch: {names_joined}"[:140],
-        "target_doctype": ", ".join(sorted(target_doctypes))[:140] if target_doctypes else "",
-        "payload": json.dumps(items, ensure_ascii=False, indent=2),
-        "version": version,
-        "previous_version": previous.name if previous else None,
-        "deployable": 1 if ARTIFACTS[artifact_type]["deployable"] else 0,
-        "captured_on": now_datetime(),
-        "notes": notes or f"التقاط دُفعة — {len(source_names)} عنصر",
-    })
-    tpl.insert(ignore_permissions=True)
-    frappe.db.commit()
-
-    return {"template": tpl.name, "version": version, "count": len(items), "deployable": bool(tpl.deployable)}
-
-
-@frappe.whitelist()
-def run_capture_batch(client_site, artifact_type, source_names):
-    """التقاط عدة عناصر دفعة واحدة — عنصر واحد = قالب عادي، أكثر = قالب مجمّع."""
-    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
-    if isinstance(source_names, str):
-        source_names = json.loads(source_names)
-    if len(source_names) == 1:
-        result = capture(client_site, artifact_type, source_names[0])
-        result["count"] = 1
-        return result
-    return capture_batch(client_site, artifact_type, source_names)
-
-
 @frappe.whitelist()
 def run_capture(client_site, artifact_type, source_name, title=None, notes=None):
     frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
@@ -242,5 +173,5 @@ def search_templates(query, limit=20):
         or_filters={"title": ["like", like], "payload": ["like", like], "notes": ["like", like]},
         fields=["name", "title", "artifact_type", "source_client", "version", "captured_on"],
         order_by="captured_on desc",
-        limit_page_length=min(int(limit), 50),
+        limit_page_length=min(int(limit), get_limits()["search_templates_limit"]),
     )

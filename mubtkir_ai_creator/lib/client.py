@@ -67,10 +67,13 @@ class FrappeSiteClient:
     def get_doc(self, doctype, name):
         return self._request("GET", f"/api/resource/{doctype}/{name}")
 
-    def get_list(self, doctype, fields=None, filters=None, limit=20, order_by=None):
+    def get_list(self, doctype, fields=None, filters=None, limit=None, order_by=None):
         # الترتيب الافتراضي: الأحدث أولًا (creation desc) — لا يجوز ترك الترتيب
         # لتقدير النموذج، لأن API يرجع تصاعديًا افتراضيًا (الأقدم أولًا) وهو
         # عكس ما يفهمه أي مستخدم from طلب "آخر" أو "أحدث" المستندات
+        if limit is None:
+            from mubtkir_ai_creator.ai_creator.doctype.ai_settings.ai_settings import get_limits
+            limit = get_limits()["client_get_list_default"]
         params = {"limit_page_length": limit, "order_by": order_by or "creation desc"}
         if fields:
             params["fields"] = json.dumps(fields)

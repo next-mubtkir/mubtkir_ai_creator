@@ -8,8 +8,7 @@ from frappe.utils import now_datetime
 
 from mubtkir_ai_creator.lib import llm, tools
 from mubtkir_ai_creator.lib.client import FrappeSiteClient
-
-MAX_ITERATIONS = 8
+from mubtkir_ai_creator.ai_creator.doctype.ai_settings.ai_settings import get_limits
 
 
 # ---------------- سجل التدقيق ----------------
@@ -26,11 +25,12 @@ def log_action(**kwargs):
     return doc.name
 
 
-def _dump(value):
+def _dump(value, limit=None):
+    cap = limit or get_limits()["log_truncation_limit"]
     try:
-        return json.dumps(value, ensure_ascii=False, default=str)[:20000]
+        return json.dumps(value, ensure_ascii=False, default=str)[:cap]
     except Exception:
-        return str(value)[:20000]
+        return str(value)[:cap]
 
 
 # ---------------- تقييم الخطورة ----------------
@@ -68,7 +68,8 @@ def run_turn(session_name, user_message, file_urls=None):
     rtype = session.request_type or "Other"
     system = llm.SYSTEM_PROMPT.replace("{request_type}", rtype)
 
-    for _ in range(MAX_ITERATIONS):
+    limits = get_limits()
+    for _ in range(limits["max_agent_iterations"]):
         result = llm.chat(messages, tools=tool_defs, system=system)
 
         if not result["tool_calls"]:
@@ -134,7 +135,7 @@ def run_turn(session_name, user_message, file_urls=None):
                 {
                     "type": "tool_result",
                     "tool_use_id": call["id"],
-                    "content": _dump(output)[:8000],
+                    "content": _dump(output, limits["tool_result_max_chars"]),
                 }
             )
 
@@ -185,7 +186,7 @@ def _mandatory_required_check(client, call):
     try:
         result = tools.find_missing_required(client, doctype, data)
     except Exception as e:
-        return f"تعذّر التحقق من الحقول الإجبارية قبل التنفيذ: {str(e)[:300]}"
+        return f"تعذّر التحقق من الحقول الإجبارية قبل التنفيذ: {str(e)[:get_limits()["validation_error_limit"]]}"
 
     if result.get("is_complete"):
         return None
@@ -198,9 +199,9 @@ def _mandatory_required_check(client, call):
             opts = f.get("available_options") or []
             line += f"، مرتبط بـ {f['link_to']}"
             if opts:
-                line += f"\n  القيم المتاحة: {'، '.join(map(str, opts[:15]))}"
+                line += f"\n  القيم المتاحة: {'، '.join(map(str, opts[:get_limits()["available_options_shown"]]))}"
         elif f.get("select_options"):
-            line += f"\n  الخيارات: {'، '.join(map(str, [o for o in f['select_options'] if o][:15]))}"
+            line += f"\n  الخيارات: {'، '.join(map(str, [o for o in f['select_options'] if o][:get_limits()["select_options_shown"]]))}"
         lines.append(line)
 
     lines.append("")
@@ -227,7 +228,7 @@ def _mandatory_link_check(client, call):
         result = tools.check_links(client, doctype, data)
     except Exception as e:
         # تعذّر الفحص لا يعني السماح: نوقف العملية بدل المخاطرة بكتابة خاطئة
-        return f"تعذّر التحقق من حقول الربط قبل التنفيذ: {str(e)[:300]}"
+        return f"تعذّر التحقق من حقول الربط قبل التنفيذ: {str(e)[:get_limits()["validation_error_limit"]]}"
 
     if result.get("all_valid"):
         return None
@@ -237,7 +238,7 @@ def _mandatory_link_check(client, call):
         opts = info.get("available_options") or []
         lines.append(
             f"- الحقل «{field}» (يرتبط بـ {info.get('doctype')}): القيمة المرسلة «{info.get('value')}» غير موجودة."
-            + (f" القيم المتاحة: {'، '.join(map(str, opts[:15]))}" if opts else " لا توجد قيم متاحة.")
+            + (f" القيم المتاحة: {'، '.join(map(str, opts[:get_limits()["available_options_shown"]]))}" if opts else " لا توجد قيم متاحة.")
         )
     lines.append("صحّح القيم من القائمة أعلاه ثم أعد المحاولة.")
     return "\n".join(lines)
@@ -335,7 +336,7 @@ def _clean_api_error(raw):
                 except Exception:
                     parts.append(str(m))
             if parts:
-                return " | ".join(parts)[:500]
+                return " | ".join(parts)[:get_limits()["error_display_limit"]]
         except Exception:
             pass
 
@@ -348,17 +349,17 @@ def _clean_api_error(raw):
         # Remove \n and traceback noise
         msg = msg.split("\\n")[0].strip()
         if msg:
-            return msg[:500]
+            return msg[:get_limits()["error_display_limit"]]
 
     # 4. Try to find ValidationError/LinkValidationError message directly
     val_match = re.search(r'(?:ValidationError|LinkValidationError):\s*(.+?)(?:\\n|$)', decoded)
     if val_match:
-        return val_match.group(1).strip()[:500]
+        return val_match.group(1).strip()[:get_limits()["error_display_limit"]]
 
     # 5. Try OperationalError
     op_match = re.search(r'OperationalError.*?:\s*(.+?)(?:\\n|$)', decoded)
     if op_match:
-        return op_match.group(1).strip()[:500]
+        return op_match.group(1).strip()[:get_limits()["error_display_limit"]]
 
     # 6. Fallback: strip URLs and code noise, return first meaningful part
     clean = re.sub(r'https?://[^\s,}"]+', '', decoded)
@@ -367,9 +368,9 @@ def _clean_api_error(raw):
     # Try to find the Arabic/English message part
     msg_match = re.search(r'"message"\s*:\s*"([^"]+)"', clean)
     if msg_match:
-        return msg_match.group(1)[:500]
+        return msg_match.group(1)[:get_limits()["error_display_limit"]]
 
-    return clean[:500] if clean else "Unknown error"
+    return clean[:get_limits()["error_display_limit"]] if clean else "Unknown error"
 
 
 def _execute_call(client, client_site, session_name, task_name, call):
@@ -399,7 +400,7 @@ def _execute_call(client, client_site, session_name, task_name, call):
             tool_output=None,
             is_success=0,
             duration_ms=int((time.time() - start) * 1000),
-            error_message=blocked[:1000],
+            error_message=blocked[:get_limits()["error_message_limit"]],
         )
         return {"error": blocked}
 
@@ -418,7 +419,7 @@ def _execute_call(client, client_site, session_name, task_name, call):
         output = tools.run_tool(client, call["name"], args)
         success, error = 1, None
     except Exception as e:
-        raw_error = str(e)[:2000]
+        raw_error = str(e)[:get_limits()["error_display_limit"] * 4]
         error = _clean_api_error(raw_error)
         output, success = {"error": error}, 0
 
@@ -475,7 +476,7 @@ def execute_task(task_name):
     task.db_set("verification_result", _dump(verification))
     task.db_set("status", "Failed" if failed else "Completed")
     if failed:
-        task.db_set("error_message", (error_text or "Unspecified failure")[:1000])
+        task.db_set("error_message", (error_text or "Unspecified failure")[:get_limits()["error_message_limit"]])
 
     frappe.db.commit()
     return {
@@ -506,7 +507,7 @@ def verify_task(client, calls, results):
                     "verified": True,
                 })
             except Exception as e:
-                checks.append({"tool": call["name"], "verified": False, "error": str(e)[:300]})
+                checks.append({"tool": call["name"], "verified": False, "error": str(e)[:get_limits()["validation_error_limit"]]})
 
         elif call["name"] in ("create_document", "add_custom_field"):
             created = (res.get("result") or {}) if isinstance(res.get("result"), dict) else {}

@@ -44,41 +44,41 @@
   "max_agent_iterations",
   "limits_truncation_section",
   "tool_result_max_chars",
-  "column_break_trunc_1",
+  "cb_trunc_1",
   "log_truncation_limit",
-  "limits_trunc_2_section",
+  "sb_trunc_2",
   "error_message_limit",
-  "column_break_trunc_2",
+  "cb_trunc_2",
   "error_display_limit",
-  "limits_trunc_3_section",
+  "sb_trunc_3",
   "validation_error_limit",
   "limits_list_section",
   "list_documents_max_limit",
-  "column_break_list_1",
+  "cb_list_1",
   "list_documents_default_limit",
-  "limits_list_2_section",
+  "sb_list_2",
   "client_get_list_default",
-  "column_break_list_2",
+  "cb_list_2",
   "inspect_customizations_limit",
-  "limits_list_3_section",
+  "sb_list_3",
   "diagnose_permissions_limit",
-  "column_break_list_3",
+  "cb_list_3",
   "list_client_sites_limit",
   "limits_search_section",
   "find_document_name_limit",
-  "column_break_search_1",
+  "cb_search_1",
   "search_past_tasks_limit",
-  "limits_search_2_section",
+  "sb_search_2",
   "search_templates_limit",
-  "column_break_search_2",
+  "cb_search_2",
   "list_available_limit",
-  "limits_search_3_section",
+  "sb_search_3",
   "list_artifact_types_limit",
   "limits_options_section",
   "link_options_limit",
-  "column_break_options_1",
+  "cb_options_1",
   "available_options_shown",
-  "limits_options_2_section",
+  "sb_options_2",
   "select_options_shown"
  ],
  "fields": [
@@ -300,25 +300,26 @@
    "fieldtype": "Int",
    "label": "Max Agent Iterations",
    "default": "8",
-   "description": "Maximum tool-call rounds per single chat message. Each round may contain multiple tool calls. Higher = can complete complex tasks but increases API cost and risk of retry loops."
+   "non_negative": 1,
+   "description": "Maximum tool-call rounds per single chat message. Higher = can complete complex tasks but increases API cost and risk of retry loops."
   },
   {
    "fieldname": "limits_truncation_section",
    "fieldtype": "Section Break",
    "label": "Output Truncation",
    "description": "Controls how much data is sent back to the model and stored in logs",
-   "collapsible": 1,
-   "collapsed": 1
+   "collapsible": 1
   },
   {
    "fieldname": "tool_result_max_chars",
    "fieldtype": "Int",
    "label": "Tool Result Max Chars",
    "default": "8000",
-   "description": "Max characters from each tool result sent back to the model. Counts against context window. GPT-5.5: ~128K context, Claude Sonnet: ~200K context."
+   "non_negative": 1,
+   "description": "Max characters from each tool result sent back to the model. Counts against context window."
   },
   {
-   "fieldname": "column_break_trunc_1",
+   "fieldname": "cb_trunc_1",
    "fieldtype": "Column Break"
   },
   {
@@ -326,24 +327,24 @@
    "fieldtype": "Int",
    "label": "Log Truncation Limit",
    "default": "20000",
-   "description": "Max characters stored per field in AI Action Log (tool_input, tool_output, value_before, value_after). Does not affect model quality — only audit storage."
+   "non_negative": 1,
+   "description": "Max characters stored per field in AI Action Log. Does not affect model quality — only audit storage."
   },
   {
-   "fieldname": "limits_trunc_2_section",
+   "fieldname": "sb_trunc_2",
    "fieldtype": "Section Break",
-   "collapsible": 1,
-   "collapsed": 1,
-   "hide_border": 1
+   "hide_border": 0
   },
   {
    "fieldname": "error_message_limit",
    "fieldtype": "Int",
    "label": "Error Message Limit",
    "default": "1000",
+   "non_negative": 1,
    "description": "Max characters for error messages stored in AI Task and AI Action Log."
   },
   {
-   "fieldname": "column_break_trunc_2",
+   "fieldname": "cb_trunc_2",
    "fieldtype": "Column Break"
   },
   {
@@ -351,37 +352,39 @@
    "fieldtype": "Int",
    "label": "Error Display Limit",
    "default": "500",
-   "description": "Max characters for error messages returned to the model in tool results and _clean_api_error output."
+   "non_negative": 1,
+   "description": "Max characters for error messages returned to the model in tool results."
   },
   {
-   "fieldname": "limits_trunc_3_section",
+   "fieldname": "sb_trunc_3",
    "fieldtype": "Section Break",
-   "hide_border": 1
+   "hide_border": 0
   },
   {
    "fieldname": "validation_error_limit",
    "fieldtype": "Int",
    "label": "Validation Error Limit",
    "default": "300",
-   "description": "Max characters for inline validation errors (link checks, mandatory checks, exception messages)."
+   "non_negative": 1,
+   "description": "Max characters for inline validation errors (link checks, mandatory checks)."
   },
   {
    "fieldname": "limits_list_section",
    "fieldtype": "Section Break",
    "label": "List & Query Limits",
    "description": "Controls how many records are returned by read operations",
-   "collapsible": 1,
-   "collapsed": 1
+   "collapsible": 1
   },
   {
    "fieldname": "list_documents_max_limit",
    "fieldtype": "Int",
    "label": "List Documents Max Limit",
    "default": "100",
+   "non_negative": 1,
    "description": "Hard cap for list_documents tool — even if the model requests more."
   },
   {
-   "fieldname": "column_break_list_1",
+   "fieldname": "cb_list_1",
    "fieldtype": "Column Break"
   },
   {
@@ -389,22 +392,24 @@
    "fieldtype": "Int",
    "label": "List Documents Default Limit",
    "default": "20",
+   "non_negative": 1,
    "description": "Default limit when the model does not specify a limit."
   },
   {
-   "fieldname": "limits_list_2_section",
+   "fieldname": "sb_list_2",
    "fieldtype": "Section Break",
-   "hide_border": 1
+   "hide_border": 0
   },
   {
    "fieldname": "client_get_list_default",
    "fieldtype": "Int",
    "label": "Client Get List Default",
    "default": "20",
-   "description": "Default limit for internal client.get_list calls not triggered by the model directly (e.g. link validation, required fields check)."
+   "non_negative": 1,
+   "description": "Default limit for internal client.get_list calls not triggered by the model directly."
   },
   {
-   "fieldname": "column_break_list_2",
+   "fieldname": "cb_list_2",
    "fieldtype": "Column Break"
   },
   {
@@ -412,22 +417,24 @@
    "fieldtype": "Int",
    "label": "Inspect Customizations Limit",
    "default": "100",
+   "non_negative": 1,
    "description": "Max Custom Fields and Property Setters returned per query."
   },
   {
-   "fieldname": "limits_list_3_section",
+   "fieldname": "sb_list_3",
    "fieldtype": "Section Break",
-   "hide_border": 1
+   "hide_border": 0
   },
   {
    "fieldname": "diagnose_permissions_limit",
    "fieldtype": "Int",
    "label": "Diagnose Permissions Limit",
    "default": "100",
+   "non_negative": 1,
    "description": "Max roles and permission rules returned per query."
   },
   {
-   "fieldname": "column_break_list_3",
+   "fieldname": "cb_list_3",
    "fieldtype": "Column Break"
   },
   {
@@ -435,6 +442,7 @@
    "fieldtype": "Int",
    "label": "List Client Sites Limit",
    "default": "200",
+   "non_negative": 1,
    "description": "Max client sites returned by list_client_sites tool."
   },
   {
@@ -442,18 +450,18 @@
    "fieldtype": "Section Break",
    "label": "Search Limits",
    "description": "Controls search result counts",
-   "collapsible": 1,
-   "collapsed": 1
+   "collapsible": 1
   },
   {
    "fieldname": "find_document_name_limit",
    "fieldtype": "Int",
    "label": "Find Document Name Limit",
    "default": "5",
+   "non_negative": 1,
    "description": "Max matches returned when searching for a document by filters."
   },
   {
-   "fieldname": "column_break_search_1",
+   "fieldname": "cb_search_1",
    "fieldtype": "Column Break"
   },
   {
@@ -461,22 +469,24 @@
    "fieldtype": "Int",
    "label": "Search Past Tasks Limit",
    "default": "20",
+   "non_negative": 1,
    "description": "Max past tasks returned by search_past_tasks tool."
   },
   {
-   "fieldname": "limits_search_2_section",
+   "fieldname": "sb_search_2",
    "fieldtype": "Section Break",
-   "hide_border": 1
+   "hide_border": 0
   },
   {
    "fieldname": "search_templates_limit",
    "fieldtype": "Int",
    "label": "Search Templates Limit",
    "default": "50",
+   "non_negative": 1,
    "description": "Max templates returned by search_templates tool."
   },
   {
-   "fieldname": "column_break_search_2",
+   "fieldname": "cb_search_2",
    "fieldtype": "Column Break"
   },
   {
@@ -484,37 +494,39 @@
    "fieldtype": "Int",
    "label": "List Available Limit",
    "default": "100",
+   "non_negative": 1,
    "description": "Max available artifacts shown in capture/template listing."
   },
   {
-   "fieldname": "limits_search_3_section",
+   "fieldname": "sb_search_3",
    "fieldtype": "Section Break",
-   "hide_border": 1
+   "hide_border": 0
   },
   {
    "fieldname": "list_artifact_types_limit",
    "fieldtype": "Int",
    "label": "List Artifact Types Limit",
    "default": "1000",
-   "description": "Max DocTypes returned when listing all available artifact types from a client site."
+   "non_negative": 1,
+   "description": "Max DocTypes returned when listing all available artifact types."
   },
   {
    "fieldname": "limits_options_section",
    "fieldtype": "Section Break",
    "label": "Options Display",
    "description": "Controls how many options are shown for Link and Select fields",
-   "collapsible": 1,
-   "collapsed": 1
+   "collapsible": 1
   },
   {
    "fieldname": "link_options_limit",
    "fieldtype": "Int",
    "label": "Link Options Limit",
    "default": "50",
-   "description": "Max options returned for a Link field (e.g. Item Group, Warehouse, UOM)."
+   "non_negative": 1,
+   "description": "Max options returned for a Link field (e.g. Item Group, Warehouse)."
   },
   {
-   "fieldname": "column_break_options_1",
+   "fieldname": "cb_options_1",
    "fieldtype": "Column Break"
   },
   {
@@ -522,18 +534,20 @@
    "fieldtype": "Int",
    "label": "Available Options Shown",
    "default": "15",
-   "description": "Max options displayed inline when a required Link field is missing or a link value is invalid."
+   "non_negative": 1,
+   "description": "Max options displayed inline when a Link field value is invalid."
   },
   {
-   "fieldname": "limits_options_2_section",
+   "fieldname": "sb_options_2",
    "fieldtype": "Section Break",
-   "hide_border": 1
+   "hide_border": 0
   },
   {
    "fieldname": "select_options_shown",
    "fieldtype": "Int",
    "label": "Select Options Shown",
    "default": "15",
+   "non_negative": 1,
    "description": "Max Select field choices displayed inline in validation messages."
   }
  ],

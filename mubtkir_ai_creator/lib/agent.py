@@ -192,7 +192,7 @@ def _mandatory_required_check(client, call):
         result = tools.find_missing_required(client, doctype, data)
     except Exception as e:
         limit = _lim("validation_error_limit")
-return f"Failed to pre-validate mandatory fields: {str(e)[:limit]}"
+        return f"Failed to pre-validate mandatory fields: {str(e)[:limit]}"
     if result.get("is_complete"):
         return None
 

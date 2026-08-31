@@ -18,16 +18,12 @@ from mubtkir_ai_creator.lib.client import FrappeSiteClient
 
 ALLOWED_TYPES = ("Print Format", "Custom Field", "Settings", "Custom HTML Block", "Workspace", "Item", "Customer", "Supplier")
 
-# أنواع مرفوضة صراحةً حتى لو اختيرت من قائمة "كل DocTypes" — تحتوي بيانات اعتماد
-# أو هي جزء داخلي من هذا التطبيق نفسه، ونشرها بين عملاء خطأ شائع خطير
 DENYLIST_TYPES = {
     "User", "AI Client Site", "AI Settings", "AI Task", "AI Action Log",
     "AI Session", "AI Deployment", "AI Deployment Target", "AI Import",
     "AI Import Field Map", "AI Template", "DocType",
 }
 
-# اسم الـ DocType الفعلي لدى الموقع، لكل نوع نشر يُقرأ منه/يُكتب إليه مباشرة
-# (Settings حالة خاصة: الاسم = اسم الـ DocType نفسه لأنه Single)
 TYPE_DOCTYPE = {
     "Print Format": "Print Format",
     "Custom Field": "Custom Field",
@@ -38,64 +34,110 @@ TYPE_DOCTYPE = {
     "Supplier": "Supplier",
 }
 
-# أنواع تُسمّى يدويًا لدى الموقع (autoname: Prompt) — لازم نمرر name صراحةً
-# عند الإنشاء، وإلا يرفض الموقع الهدف الطلب بخطأ "يرجى تحديد اسم المستند"
 PROMPT_NAMED_TYPES = {"Custom HTML Block", "Workspace"}
 
-# أنواع تُسمّى تلقائيًا من قيمة حقل معيّن لديها (field-based autoname) —
-# نحدد اسم العنصر لدى الهدف من نفس الحقل بدل الاعتماد على target_doctype
 FIELD_NAMED_TYPES = {"Item": "item_code", "Customer": "customer_name", "Supplier": "supplier_name"}
 
 # الحقول التي لا تُنسخ أبدًا بين المواقع
-STRIP_FIELDS = {
-    "name", "owner", "creation", "modified", "modified_by", "idx", "docstatus",
+# ملاحظة: name يُحذف فقط للأنواع التي لا تحتاجه — انظر _strip_fields()
+STRIP_FIELDS_BASE = {
+    "owner", "creation", "modified", "modified_by", "idx", "docstatus",
     "doctype", "naming_series", "_user_tags", "_comments", "_assign", "_liked_by",
 }
 
 
+def _strip_fields(deployment_type):
+    """تحديد الحقول المحذوفة حسب النوع — الأنواع التي تحتاج name لا نحذفه."""
+    needs_name = PROMPT_NAMED_TYPES | {"Print Format"}
+    if deployment_type in needs_name:
+        return STRIP_FIELDS_BASE  # بدون name
+    return STRIP_FIELDS_BASE | {"name"}  # مع name
+
+
+def _clean_payload(data, deployment_type, skip_none=False):
+    """تنظيف بيانات عنصر واحد من الحقول غير المطلوبة."""
+    strip = _strip_fields(deployment_type)
+    if skip_none:
+        return {k: v for k, v in data.items() if k not in strip and v is not None}
+    return {k: v for k, v in data.items() if k not in strip}
+
+
 # ---------------- بناء البيانات ----------------
 
-def _ensure_dict(payload, label="البيانات"):
-    """تحويل list إلى dict (أخذ العنصر الأول) مع التحقق من الصلاحية."""
-    if isinstance(payload, list):
-        payload = payload[0] if payload else {}
-    if not isinstance(payload, dict):
-        frappe.throw(f"{label} ليست كائن JSON صالحًا (dict)")
-    return payload
+def build_payloads(dep):
+    """استخراج البيانات المراد تطبيقها — يُرجع دائمًا قائمة من العناصر.
 
-
-def build_payload(dep):
-    """استخراج البيانات المراد تطبيقها، من عميل مصدر أو من تعريف يدوي."""
+    القالب المفرد يُرجع قائمة بعنصر واحد، والقالب الجماعي (batch) يُرجع كل عناصره.
+    """
     if dep.deployment_type in DENYLIST_TYPES:
         frappe.throw(f"نوع نشر غير مسموح: {dep.deployment_type}")
 
-    # أنواع تحتاج حقل name لتحديد العنصر لدى الهدف — لا نحذفه
-    needs_name = PROMPT_NAMED_TYPES | {"Print Format"}
-    strip = STRIP_FIELDS - {"name"} if dep.deployment_type in needs_name else STRIP_FIELDS
-
     if dep.source_mode == "من قالب":
-        if not dep.source_template:
-            frappe.throw("حدد القالب")
-        tpl = frappe.get_doc("AI Template", dep.source_template)
-        if not tpl.deployable:
-            frappe.throw(
-                "هذا القالب غير قابل للنشر (Server Script يعمل على سيرفر العميل — للتوثيق والتصدير فقط)"
-            )
-        payload = json.loads(tpl.payload or "{}")
-        payload = _ensure_dict(payload, "بيانات القالب")
-        return {k: v for k, v in payload.items() if k not in strip}
+        return _payloads_from_template(dep)
 
     if dep.source_mode == "تعريف يدوي":
-        try:
-            payload = json.loads(dep.manual_payload or "{}")
-        except ValueError as e:
-            frappe.throw(f"التعريف اليدوي ليس JSON صالحًا: {e}")
-        payload = _ensure_dict(payload, "التعريف اليدوي")
-        if not payload:
-            frappe.throw("التعريف اليدوي فارغ أو غير صالح")
-        return {k: v for k, v in payload.items() if k not in strip}
+        return _payloads_from_manual(dep)
 
     # نسخ من عميل قائم
+    return _payloads_from_client(dep)
+
+
+def _payloads_from_template(dep):
+    """استخراج البيانات من قالب — يدعم القوالب المفردة والجماعية."""
+    if not dep.source_template:
+        frappe.throw("حدد القالب")
+
+    tpl = frappe.get_doc("AI Template", dep.source_template)
+    if not tpl.deployable:
+        frappe.throw(
+            "هذا القالب غير قابل للنشر (Server Script يعمل على سيرفر العميل — للتوثيق والتصدير فقط)"
+        )
+
+    raw = json.loads(tpl.payload or "{}")
+
+    # قالب جماعي (capture_batch): قائمة بصيغة [{"source_name": "...", "data": {...}}, ...]
+    if isinstance(raw, list):
+        items = []
+        for entry in raw:
+            if isinstance(entry, dict) and "data" in entry:
+                items.append(_clean_payload(entry["data"], dep.deployment_type))
+            elif isinstance(entry, dict):
+                items.append(_clean_payload(entry, dep.deployment_type))
+        if not items:
+            frappe.throw("بيانات القالب الجماعي فارغة")
+        return items
+
+    # قالب مفرد: dict عادي
+    if not isinstance(raw, dict) or not raw:
+        frappe.throw("بيانات القالب فارغة أو غير صالحة")
+    return [_clean_payload(raw, dep.deployment_type)]
+
+
+def _payloads_from_manual(dep):
+    """استخراج البيانات من تعريف يدوي."""
+    try:
+        raw = json.loads(dep.manual_payload or "{}")
+    except ValueError as e:
+        frappe.throw(f"التعريف اليدوي ليس JSON صالحًا: {e}")
+
+    if isinstance(raw, list):
+        items = []
+        for entry in raw:
+            if isinstance(entry, dict) and "data" in entry:
+                items.append(_clean_payload(entry["data"], dep.deployment_type))
+            elif isinstance(entry, dict):
+                items.append(_clean_payload(entry, dep.deployment_type))
+        if not items:
+            frappe.throw("التعريف اليدوي فارغ أو غير صالح")
+        return items
+
+    if not isinstance(raw, dict) or not raw:
+        frappe.throw("التعريف اليدوي فارغ أو غير صالح")
+    return [_clean_payload(raw, dep.deployment_type)]
+
+
+def _payloads_from_client(dep):
+    """استخراج البيانات من عميل مصدر."""
     if not dep.source_client or not dep.source_record:
         frappe.throw("حدد العميل المصدر واسم العنصر")
 
@@ -110,8 +152,12 @@ def build_payload(dep):
     if not doc:
         frappe.throw(f"لم يُعثر على «{dep.source_record}» لدى العميل المصدر")
 
-    doc = _ensure_dict(doc, "بيانات العميل المصدر")
-    return {k: v for k, v in doc.items() if k not in strip and v is not None}
+    if isinstance(doc, list):
+        doc = doc[0] if doc else {}
+    if not isinstance(doc, dict):
+        frappe.throw("بيانات العميل المصدر غير صالحة")
+
+    return [_clean_payload(doc, dep.deployment_type, skip_none=True)]
 
 
 def _identity(dep, payload):
@@ -128,8 +174,7 @@ def _identity(dep, payload):
         field = FIELD_NAMED_TYPES[dep.deployment_type]
         return TYPE_DOCTYPE[dep.deployment_type], payload.get(field) or dep.source_record
     if dep.deployment_type == "Settings":
-        return dep.target_doctype, dep.target_doctype  # Single doctype
-    # أي نوع آخر غير مصنّف صراحة أعلاه: افتراض أن الاسم لدى الهدف يطابق اسمه لدى المصدر
+        return dep.target_doctype, dep.target_doctype
     return TYPE_DOCTYPE.get(dep.deployment_type, dep.deployment_type), dep.source_record
 
 
@@ -137,15 +182,15 @@ def _identity(dep, payload):
 
 def preview(name):
     dep = frappe.get_doc("AI Deployment", name)
-    payload = build_payload(dep)
-    dep.db_set("resolved_payload", json.dumps(payload, ensure_ascii=False, indent=2))
+    payloads = build_payloads(dep)
+    dep.db_set("resolved_payload", json.dumps(payloads, ensure_ascii=False, indent=2))
 
     counts = {"Compatible": 0, "Warning": 0, "Incompatible": 0}
 
     for row in dep.targets:
         try:
             client = FrappeSiteClient(row.client_site)
-            verdict, note = _check_target(dep, payload, client)
+            verdict, note = _check_target_multi(dep, payloads, client)
         except Exception as e:
             verdict, note = "Incompatible", f"تعذّر الاتصال: {str(e)[:300]}"
 
@@ -164,17 +209,37 @@ def preview(name):
     dep.db_set("status", "Pending Approval")
     frappe.db.commit()
 
-    return {"summary": summary, "counts": counts, "payload": payload}
+    return {"summary": summary, "counts": counts, "payload_count": len(payloads)}
+
+
+def _check_target_multi(dep, payloads, client):
+    """فحص توافق موقع واحد مع كل العناصر المراد نشرها."""
+    notes = []
+    worst = "Compatible"
+
+    for payload in payloads:
+        verdict, note = _check_target(dep, payload, client)
+
+        # أسوأ نتيجة تحدد الحكم النهائي
+        if verdict == "Incompatible":
+            worst = "Incompatible"
+        elif verdict == "Warning" and worst != "Incompatible":
+            worst = "Warning"
+
+        target_dt, target_name = _identity(dep, payload)
+        label = target_name or "?"
+        notes.append(f"[{label}] {note}")
+
+    return worst, " | ".join(notes)
 
 
 def _check_target(dep, payload, client):
-    """فحص توافق موقع واحد قبل التنفيذ."""
+    """فحص توافق عنصر واحد مع موقع واحد."""
     target_dt, target_name = _identity(dep, payload)
 
     if not target_dt or not target_name:
         return "Incompatible", "تعذّر تحديد العنصر المستهدف من البيانات"
 
-    # 1) هل الـ DocType المرتبط موجود لدى الهدف؟
     related = None
     if dep.deployment_type == "Print Format":
         related = payload.get("doc_type")
@@ -189,7 +254,6 @@ def _check_target(dep, payload, client):
         except Exception:
             return "Incompatible", f"الـ DocType «{related}» غير موجود لدى هذا العميل"
 
-    # 2) هل العنصر موجود مسبقًا؟
     exists = False
     try:
         client.get_doc(target_dt, target_name)
@@ -198,13 +262,12 @@ def _check_target(dep, payload, client):
         exists = False
 
     if dep.deployment_type == "Settings":
-        # التحقق من أن كل حقل في البيانات موجود في تعريف الإعدادات لدى الهدف
         try:
             meta = client.get_meta(dep.target_doctype).get("data", {}) or {}
             known = {f.get("fieldname") for f in meta.get("fields", [])}
             unknown = [k for k in payload.keys() if k not in known]
             if unknown:
-                return "Warning", f"حقول غير موجودة لدى هذا العميل وستُتجاهل: {'، '.join(unknown[:10])}"
+                return "Warning", f"حقول غير موجودة وستُتجاهل: {'، '.join(unknown[:10])}"
         except Exception as e:
             return "Incompatible", f"تعذّر قراءة تعريف الإعدادات: {str(e)[:200]}"
         return "Compatible", "سيتم تحديث الإعدادات"
@@ -224,8 +287,16 @@ def execute(name):
     if dep.status != "Approved":
         frappe.throw("لا يمكن التنفيذ قبل الاعتماد")
 
-    payload = json.loads(dep.resolved_payload or "{}")
-    if not payload:
+    raw = json.loads(dep.resolved_payload or "[]")
+    # دعم الصيغة القديمة (dict مفرد) والجديدة (قائمة)
+    if isinstance(raw, dict):
+        payloads = [raw]
+    elif isinstance(raw, list):
+        payloads = raw
+    else:
+        frappe.throw("لا توجد بيانات محسوبة — نفّذ المعاينة أولًا")
+
+    if not payloads:
         frappe.throw("لا توجد بيانات محسوبة — نفّذ المعاينة أولًا")
 
     dep.db_set("status", "Executing")
@@ -237,7 +308,7 @@ def execute(name):
         start = time.time()
         try:
             client = FrappeSiteClient(row.client_site)
-            outcome, note, output = _apply_to_target(dep, payload, client)
+            outcome, note, output = _apply_to_target_multi(dep, payloads, client)
         except Exception as e:
             outcome, note, output = "Failed", str(e)[:500], None
             client = None
@@ -251,7 +322,7 @@ def execute(name):
             site_url=client.site_url if client else None,
             tool_name=f"deploy_{dep.deployment_type.lower().replace(' ', '_')}",
             risk_level="high",
-            tool_input=_dump({"deployment": dep.name, "payload": payload}),
+            tool_input=_dump({"deployment": dep.name, "payload_count": len(payloads)}),
             tool_output=_dump(output),
             is_success=1 if outcome == "Success" else 0,
             duration_ms=int((time.time() - start) * 1000),
@@ -265,7 +336,7 @@ def execute(name):
         else:
             failed += 1
 
-        frappe.db.commit()  # لا نفقد نتائج من نجح إن انقطع التنفيذ لاحقًا
+        frappe.db.commit()
 
     dep.db_set("success_count", success)
     dep.db_set("failed_count", failed)
@@ -287,8 +358,42 @@ def execute(name):
     }
 
 
+def _apply_to_target_multi(dep, payloads, client):
+    """تطبيق كل العناصر على موقع واحد. يُرجع (النتيجة الإجمالية، الملاحظة، مخرجات)."""
+    results = []
+    all_outputs = []
+    any_success = False
+    any_fail = False
+
+    for payload in payloads:
+        try:
+            outcome, note, output = _apply_to_target(dep, payload, client)
+        except Exception as e:
+            outcome, note, output = "Failed", str(e)[:200], None
+
+        results.append(f"{note}")
+        all_outputs.append(output)
+
+        if outcome == "Success":
+            any_success = True
+        elif outcome == "Failed":
+            any_fail = True
+
+    if any_fail and not any_success:
+        overall = "Failed"
+    elif any_fail and any_success:
+        overall = "Success"  # بعضها نجح — نسجّل نجاح مع تفصيل
+    elif any_success:
+        overall = "Success"
+    else:
+        overall = "Skipped"
+
+    combined_note = f"[{len(payloads)} items] " + " | ".join(results)
+    return overall, combined_note, all_outputs
+
+
 def _apply_to_target(dep, payload, client):
-    """تطبيق العملية على موقع واحد. يُرجع (النتيجة، الملاحظة، مخرجات API)."""
+    """تطبيق عنصر واحد على موقع واحد."""
     target_dt, target_name = _identity(dep, payload)
 
     if dep.deployment_type == "Settings":
@@ -300,7 +405,6 @@ def _apply_to_target(dep, payload, client):
         out = client.update_doc(dep.target_doctype, dep.target_doctype, data)
         return "Success", f"تم تحديث {len(data)} حقلًا", out
 
-    # Print Format / Custom Field
     exists = True
     try:
         client.get_doc(target_dt, target_name)
@@ -308,7 +412,7 @@ def _apply_to_target(dep, payload, client):
         exists = False
 
     if exists and not dep.overwrite_existing:
-        return "Skipped", f"'{target_name}' already exists and overwrite is disabled", None
+        return "Skipped", f"'{target_name}' exists, overwrite disabled", None
 
     data = dict(payload)
     if dep.deployment_type == "Custom Field" and dep.target_doctype:
@@ -318,14 +422,14 @@ def _apply_to_target(dep, payload, client):
         out = client.update_doc(target_dt, target_name, data)
         return "Success", f"Updated '{target_name}'", out
 
-    data.setdefault("name", target_name) if dep.deployment_type == "Print Format" or dep.deployment_type in PROMPT_NAMED_TYPES else None
+    if dep.deployment_type == "Print Format" or dep.deployment_type in PROMPT_NAMED_TYPES:
+        data.setdefault("name", target_name)
     try:
         out = client.create_doc(target_dt, data)
     except Exception as e:
-        # Fallback: if DuplicateEntry and overwrite is enabled, try update instead
         if "DuplicateEntry" in str(e) and dep.overwrite_existing:
             out = client.update_doc(target_dt, target_name, data)
-            return "Success", f"Updated '{target_name}' (was not detected initially)", out
+            return "Success", f"Updated '{target_name}' (fallback)", out
         raise
     created = (out or {}).get("data", {}).get("name")
     return "Success", f"Created '{created or target_name}'", out

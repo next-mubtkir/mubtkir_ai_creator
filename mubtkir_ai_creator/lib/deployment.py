@@ -55,6 +55,15 @@ STRIP_FIELDS = {
 
 # ---------------- بناء البيانات ----------------
 
+def _ensure_dict(payload, label="البيانات"):
+    """تحويل list إلى dict (أخذ العنصر الأول) مع التحقق من الصلاحية."""
+    if isinstance(payload, list):
+        payload = payload[0] if payload else {}
+    if not isinstance(payload, dict):
+        frappe.throw(f"{label} ليست كائن JSON صالحًا (dict)")
+    return payload
+
+
 def build_payload(dep):
     """استخراج البيانات المراد تطبيقها، من عميل مصدر أو من تعريف يدوي."""
     if dep.deployment_type in DENYLIST_TYPES:
@@ -69,6 +78,7 @@ def build_payload(dep):
                 "هذا القالب غير قابل للنشر (Server Script يعمل على سيرفر العميل — للتوثيق والتصدير فقط)"
             )
         payload = json.loads(tpl.payload or "{}")
+        payload = _ensure_dict(payload, "بيانات القالب")
         return {k: v for k, v in payload.items() if k not in STRIP_FIELDS}
 
     if dep.source_mode == "تعريف يدوي":
@@ -76,7 +86,8 @@ def build_payload(dep):
             payload = json.loads(dep.manual_payload or "{}")
         except ValueError as e:
             frappe.throw(f"التعريف اليدوي ليس JSON صالحًا: {e}")
-        if not isinstance(payload, dict) or not payload:
+        payload = _ensure_dict(payload, "التعريف اليدوي")
+        if not payload:
             frappe.throw("التعريف اليدوي فارغ أو غير صالح")
         return {k: v for k, v in payload.items() if k not in STRIP_FIELDS}
 
@@ -95,6 +106,7 @@ def build_payload(dep):
     if not doc:
         frappe.throw(f"لم يُعثر على «{dep.source_record}» لدى العميل المصدر")
 
+    doc = _ensure_dict(doc, "بيانات العميل المصدر")
     return {k: v for k, v in doc.items() if k not in STRIP_FIELDS and v is not None}
 
 

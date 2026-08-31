@@ -69,6 +69,10 @@ def build_payload(dep):
     if dep.deployment_type in DENYLIST_TYPES:
         frappe.throw(f"نوع نشر غير مسموح: {dep.deployment_type}")
 
+    # أنواع تحتاج حقل name لتحديد العنصر لدى الهدف — لا نحذفه
+    needs_name = PROMPT_NAMED_TYPES | {"Print Format"}
+    strip = STRIP_FIELDS - {"name"} if dep.deployment_type in needs_name else STRIP_FIELDS
+
     if dep.source_mode == "من قالب":
         if not dep.source_template:
             frappe.throw("حدد القالب")
@@ -79,7 +83,7 @@ def build_payload(dep):
             )
         payload = json.loads(tpl.payload or "{}")
         payload = _ensure_dict(payload, "بيانات القالب")
-        return {k: v for k, v in payload.items() if k not in STRIP_FIELDS}
+        return {k: v for k, v in payload.items() if k not in strip}
 
     if dep.source_mode == "تعريف يدوي":
         try:
@@ -89,7 +93,7 @@ def build_payload(dep):
         payload = _ensure_dict(payload, "التعريف اليدوي")
         if not payload:
             frappe.throw("التعريف اليدوي فارغ أو غير صالح")
-        return {k: v for k, v in payload.items() if k not in STRIP_FIELDS}
+        return {k: v for k, v in payload.items() if k not in strip}
 
     # نسخ من عميل قائم
     if not dep.source_client or not dep.source_record:
@@ -107,7 +111,7 @@ def build_payload(dep):
         frappe.throw(f"لم يُعثر على «{dep.source_record}» لدى العميل المصدر")
 
     doc = _ensure_dict(doc, "بيانات العميل المصدر")
-    return {k: v for k, v in doc.items() if k not in STRIP_FIELDS and v is not None}
+    return {k: v for k, v in doc.items() if k not in strip and v is not None}
 
 
 def _identity(dep, payload):

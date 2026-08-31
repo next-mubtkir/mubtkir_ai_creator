@@ -191,8 +191,9 @@ def _mandatory_required_check(client, call):
     try:
         result = tools.find_missing_required(client, doctype, data)
     except Exception as e:
-        limit = _lim("validation_error_limit")
-        return f"Failed to pre-validate mandatory fields: {str(e)[:limit]}"
+        _l = _lim("validation_error_limit")
+        return f"Failed to pre-validate mandatory fields: {str(e)[:_l]}"
+
     if result.get("is_complete"):
         return None
 
@@ -204,9 +205,11 @@ def _mandatory_required_check(client, call):
             opts = f.get("available_options") or []
             line += f", linked to {f['link_to']}"
             if opts:
-                line += f"\n  Available values: {', '.join(map(str, opts[:_lim("available_options_shown")]))}"
+                _l = _lim("available_options_shown")
+                line += f"\n  Available values: {', '.join(map(str, opts[:_l]))}"
         elif f.get("select_options"):
-            line += f"\n  Options: {', '.join(map(str, [o for o in f['select_options'] if o][:_lim("select_options_shown")]))}"
+            _l = _lim("select_options_shown")
+            line += f"\n  Options: {', '.join(map(str, [o for o in f['select_options'] if o][:_l]))}"
         lines.append(line)
 
     lines.append("")
@@ -233,7 +236,8 @@ def _mandatory_link_check(client, call):
         result = tools.check_links(client, doctype, data)
     except Exception as e:
         # تعذّر الفحص لا يعني السماح: نوقف العملية بدل المخاطرة بكتابة خاطئة
-        return f"Failed to pre-validate link fields: {str(e)[:_lim("validation_error_limit")]}"
+        _l = _lim("validation_error_limit")
+        return f"Failed to pre-validate link fields: {str(e)[:_l]}"
 
     if result.get("all_valid"):
         return None
@@ -243,7 +247,7 @@ def _mandatory_link_check(client, call):
         opts = info.get("available_options") or []
         lines.append(
             f"- Field '{field}' (linked to {info.get('doctype')}): value '{info.get('value')}' not found."
-            + (f" Available values: {', '.join(map(str, opts[:_lim("available_options_shown")]))}" if opts else " No available values.")
+            + (f" Available values: {', '.join(map(str, opts[:_lim('available_options_shown')]))}" if opts else " No available values.")
         )
     lines.append("Correct the values from the list above and retry.")
     return "\n".join(lines)

@@ -1,10 +1,14 @@
-"""Set default values for new Limits fields on existing AI Settings record."""
+"""Set default values for ALL limit fields on existing AI Settings record."""
 
 import frappe
 
 
 def execute():
     defaults = {
+        "max_tokens": 4096,
+        "request_timeout": 60,
+        "session_token_warning_at": 50000,
+        "session_token_hard_cap": 150000,
         "max_agent_iterations": 8,
         "tool_result_max_chars": 8000,
         "log_truncation_limit": 20000,
@@ -25,6 +29,12 @@ def execute():
         "link_options_limit": 50,
         "available_options_shown": 15,
         "select_options_shown": 15,
+        "max_rows_per_sheet": 200,
+        "max_text_chars": 30000,
+        "default_batch_size": 200,
+        "import_timeout": 7200,
+        "max_import_rows": 100000,
+        "large_import_threshold": 5000,
     }
 
     doc = frappe.get_single("AI Settings")

@@ -2,8 +2,15 @@ import frappe
 from frappe.model.document import Document
 
 
-# Minimum allowed value for each limit field = the original hardcoded defaults
+# Minimum allowed value for each limit field = the original hardcoded defaults.
+# validate() prevents going below these. get_limits() falls back to these if field is empty.
 LIMIT_DEFAULTS = {
+    # Model Limits
+    "max_tokens": 4096,
+    "request_timeout": 60,
+    # Session Limits
+    "session_token_warning_at": 50000,
+    "session_token_hard_cap": 150000,
     # Agent Loop
     "max_agent_iterations": 8,
     # Output Truncation
@@ -29,6 +36,14 @@ LIMIT_DEFAULTS = {
     "link_options_limit": 50,
     "available_options_shown": 15,
     "select_options_shown": 15,
+    # Attachment Reading Limits
+    "max_rows_per_sheet": 200,
+    "max_text_chars": 30000,
+    # Remote Import Limits
+    "default_batch_size": 200,
+    "import_timeout": 7200,
+    "large_import_threshold": 5000,
+    # max_import_rows: 0 means unlimited — no minimum enforced
 }
 
 
@@ -53,13 +68,14 @@ def get_llm_config():
     key = doc.get_password("api_key", raise_exception=False)
     if not key and doc.llm_provider != "Ollama":
         frappe.throw("LLM API Key is not configured in AI Settings")
+    limits = get_limits()
     return {
         "provider": doc.llm_provider or "Anthropic",
         "model": doc.model,
         "base_url": doc.base_url,
         "api_key": key,
-        "max_tokens": doc.max_tokens or 4096,
-        "timeout": doc.request_timeout or 60,
+        "max_tokens": limits["max_tokens"],
+        "timeout": limits["request_timeout"],
         "heavy_model": doc.heavy_model,
     }
 
@@ -74,10 +90,11 @@ def get_whisper_key():
 
 
 def get_attachment_limits():
-    doc = frappe.get_single("AI Settings")
+    """Return attachment reading limits — now reads from get_limits()."""
+    limits = get_limits()
     return {
-        "max_rows": doc.max_rows_per_sheet or 200,
-        "max_chars": doc.max_text_chars or 30000,
+        "max_rows": limits["max_rows_per_sheet"],
+        "max_chars": limits["max_text_chars"],
     }
 
 
@@ -88,7 +105,9 @@ def get_limits():
     Each value falls back to its minimum default if the field is empty or zero.
     """
     doc = frappe.get_single("AI Settings")
-    return {
-        field: getattr(doc, field, None) or default
-        for field, default in LIMIT_DEFAULTS.items()
-    }
+    result = {}
+    for field, default in LIMIT_DEFAULTS.items():
+        result[field] = getattr(doc, field, None) or default
+    # max_import_rows: 0 is valid (unlimited) — special handling
+    result["max_import_rows"] = getattr(doc, "max_import_rows", None) or 100000
+    return result

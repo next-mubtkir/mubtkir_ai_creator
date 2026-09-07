@@ -12,7 +12,6 @@
   "heavy_model",
   "column_break_1",
   "api_key",
-  "max_tokens",
   "voice_section",
   "whisper_api_key",
   "tab_policy",
@@ -21,65 +20,77 @@
   "require_approval_high",
   "column_break_2",
   "allow_cross_client_copy",
-  "request_timeout",
   "cost_section",
-  "session_token_warning_at",
   "column_break_7",
-  "session_token_hard_cap",
   "tab_attachments",
   "attachments_section",
-  "max_rows_per_sheet",
   "column_break_5",
-  "max_text_chars",
   "tab_import",
   "import_section",
-  "default_batch_size",
-  "max_import_rows",
   "column_break_import",
-  "import_timeout",
-  "require_approval_large_import",
-  "large_import_threshold",
   "tab_limits",
-  "limits_agent_section",
+  "lim_model_section",
+  "max_tokens",
+  "lim_cb_model_1",
+  "request_timeout",
+  "lim_session_section",
+  "session_token_warning_at",
+  "lim_cb_session_1",
+  "session_token_hard_cap",
+  "lim_agent_section",
   "max_agent_iterations",
-  "limits_truncation_section",
+  "lim_truncation_section",
   "tool_result_max_chars",
-  "cb_trunc_1",
+  "lim_cb_trunc_1",
   "log_truncation_limit",
-  "sb_trunc_2",
+  "lim_cb_trunc_2",
   "error_message_limit",
-  "cb_trunc_2",
+  "lim_cb_trunc_3",
   "error_display_limit",
-  "sb_trunc_3",
+  "lim_cb_trunc_4",
   "validation_error_limit",
-  "limits_list_section",
+  "lim_list_section",
   "list_documents_max_limit",
-  "cb_list_1",
+  "lim_cb_list_1",
   "list_documents_default_limit",
-  "sb_list_2",
+  "lim_cb_list_2",
   "client_get_list_default",
-  "cb_list_2",
+  "lim_cb_list_3",
   "inspect_customizations_limit",
-  "sb_list_3",
+  "lim_cb_list_4",
   "diagnose_permissions_limit",
-  "cb_list_3",
+  "lim_cb_list_5",
   "list_client_sites_limit",
-  "limits_search_section",
+  "lim_search_section",
   "find_document_name_limit",
-  "cb_search_1",
+  "lim_cb_search_1",
   "search_past_tasks_limit",
-  "sb_search_2",
+  "lim_cb_search_2",
   "search_templates_limit",
-  "cb_search_2",
+  "lim_cb_search_3",
   "list_available_limit",
-  "sb_search_3",
+  "lim_cb_search_4",
   "list_artifact_types_limit",
-  "limits_options_section",
+  "lim_options_section",
   "link_options_limit",
-  "cb_options_1",
+  "lim_cb_options_1",
   "available_options_shown",
-  "sb_options_2",
-  "select_options_shown"
+  "lim_cb_options_2",
+  "select_options_shown",
+  "lim_attachment_section",
+  "max_rows_per_sheet",
+  "lim_cb_attach_1",
+  "max_text_chars",
+  "lim_import_section",
+  "default_batch_size",
+  "lim_cb_import_1",
+  "import_timeout",
+  "lim_cb_import_2",
+  "max_import_rows",
+  "lim_cb_import_3",
+  "require_approval_large_import",
+  "lim_cb_import_4",
+  "large_import_threshold"
  ],
  "fields": [
   {
@@ -129,12 +140,6 @@
    "description": "Required for Anthropic/OpenAI. Leave empty for Ollama (no key needed)."
   },
   {
-   "fieldname": "max_tokens",
-   "fieldtype": "Int",
-   "label": "Max Tokens",
-   "default": "4096"
-  },
-  {
    "fieldname": "voice_section",
    "fieldtype": "Section Break",
    "label": "Voice (Speech to Text)"
@@ -179,38 +184,13 @@
    "default": "0"
   },
   {
-   "fieldname": "request_timeout",
-   "fieldtype": "Int",
-   "label": "Request Timeout (seconds)",
-   "default": "60"
-  },
-  {
    "fieldname": "cost_section",
    "fieldtype": "Section Break",
    "label": "Session Cost Cap"
   },
   {
-   "fieldname": "session_token_warning_at",
-   "fieldtype": "Int",
-   "label": "Warning at (est. Tokens)",
-   "default": "50000",
-   "description": "When estimated tokens exceed this, a warning is appended to the model's reply without stopping the session."
-  },
-  {
    "fieldname": "column_break_7",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "session_token_hard_cap",
-   "fieldtype": "Int",
-   "label": "Hard Cap at (est. Tokens)",
-   "default": "150000",
-   "description": "When exceeded, new messages are blocked and the user is asked to start a new session."
-  },
-  {
-   "fieldname": "tab_attachments",
-   "fieldtype": "Tab Break",
-   "label": "Attachments"
   },
   {
    "fieldname": "attachments_section",
@@ -218,26 +198,8 @@
    "label": "Attachment Reading Limits"
   },
   {
-   "fieldname": "max_rows_per_sheet",
-   "fieldtype": "Int",
-   "label": "Max Rows per Sheet",
-   "default": "200",
-   "description": "Chat path only — the import tool processes the full file without this limit."
-  },
-  {
    "fieldname": "column_break_5",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "max_text_chars",
-   "fieldtype": "Int",
-   "label": "Max File Content Characters",
-   "default": "30000"
-  },
-  {
-   "fieldname": "tab_import",
-   "fieldtype": "Tab Break",
-   "label": "Import"
   },
   {
    "fieldname": "import_section",
@@ -245,43 +207,8 @@
    "label": "Remote Import Settings"
   },
   {
-   "fieldname": "default_batch_size",
-   "fieldtype": "Int",
-   "label": "Default Batch Size",
-   "default": "200",
-   "description": "Default number of rows per batch in Remote Import"
-  },
-  {
-   "fieldname": "max_import_rows",
-   "fieldtype": "Int",
-   "label": "Max Rows per Import",
-   "default": "100000",
-   "description": "Maximum rows allowed in a single import. Set 0 for unlimited"
-  },
-  {
    "fieldname": "column_break_import",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "import_timeout",
-   "fieldtype": "Int",
-   "label": "Import Timeout (seconds)",
-   "default": "7200",
-   "description": "Maximum time for a background import job"
-  },
-  {
-   "fieldname": "require_approval_large_import",
-   "fieldtype": "Check",
-   "label": "Require Approval for Large Imports",
-   "default": "1",
-   "description": "Create an AI Task for approval when import exceeds threshold"
-  },
-  {
-   "fieldname": "large_import_threshold",
-   "fieldtype": "Int",
-   "label": "Large Import Threshold (rows)",
-   "default": "5000",
-   "description": "Row count above which import requires approval"
   },
   {
    "fieldname": "tab_limits",
@@ -289,7 +216,61 @@
    "label": "Limits"
   },
   {
-   "fieldname": "limits_agent_section",
+   "fieldname": "lim_model_section",
+   "fieldtype": "Section Break",
+   "label": "Model Limits",
+   "description": "Controls model output size and request timeout",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "max_tokens",
+   "fieldtype": "Int",
+   "label": "Max Tokens",
+   "default": "4096",
+   "non_negative": 1,
+   "description": "Maximum output tokens per model response. GPT-5.5 supports up to 16,384. Higher values increase per-response cost."
+  },
+  {
+   "fieldname": "lim_cb_model_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "request_timeout",
+   "fieldtype": "Int",
+   "label": "Request Timeout (seconds)",
+   "default": "60",
+   "non_negative": 1,
+   "description": "Timeout for both LLM API calls and client site API calls."
+  },
+  {
+   "fieldname": "lim_session_section",
+   "fieldtype": "Section Break",
+   "label": "Session Limits",
+   "description": "Controls session token usage caps",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "session_token_warning_at",
+   "fieldtype": "Int",
+   "label": "Warning at (est. Tokens)",
+   "default": "50000",
+   "non_negative": 1,
+   "description": "When estimated tokens exceed this, a warning is appended to the model's reply without stopping the session."
+  },
+  {
+   "fieldname": "lim_cb_session_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "session_token_hard_cap",
+   "fieldtype": "Int",
+   "label": "Hard Cap at (est. Tokens)",
+   "default": "150000",
+   "non_negative": 1,
+   "description": "When exceeded, new messages are blocked and the user is asked to start a new session."
+  },
+  {
+   "fieldname": "lim_agent_section",
    "fieldtype": "Section Break",
    "label": "Agent Loop",
    "description": "Controls how many steps the AI agent can take per conversation turn",
@@ -304,7 +285,7 @@
    "description": "Maximum tool-call rounds per single chat message. Higher = can complete complex tasks but increases API cost and risk of retry loops."
   },
   {
-   "fieldname": "limits_truncation_section",
+   "fieldname": "lim_truncation_section",
    "fieldtype": "Section Break",
    "label": "Output Truncation",
    "description": "Controls how much data is sent back to the model and stored in logs",
@@ -319,7 +300,7 @@
    "description": "Max characters from each tool result sent back to the model. Counts against context window."
   },
   {
-   "fieldname": "cb_trunc_1",
+   "fieldname": "lim_cb_trunc_1",
    "fieldtype": "Column Break"
   },
   {
@@ -331,9 +312,8 @@
    "description": "Max characters stored per field in AI Action Log. Does not affect model quality — only audit storage."
   },
   {
-   "fieldname": "sb_trunc_2",
-   "fieldtype": "Section Break",
-   "hide_border": 0
+   "fieldname": "lim_cb_trunc_2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "error_message_limit",
@@ -344,7 +324,7 @@
    "description": "Max characters for error messages stored in AI Task and AI Action Log."
   },
   {
-   "fieldname": "cb_trunc_2",
+   "fieldname": "lim_cb_trunc_3",
    "fieldtype": "Column Break"
   },
   {
@@ -356,9 +336,8 @@
    "description": "Max characters for error messages returned to the model in tool results."
   },
   {
-   "fieldname": "sb_trunc_3",
-   "fieldtype": "Section Break",
-   "hide_border": 0
+   "fieldname": "lim_cb_trunc_4",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "validation_error_limit",
@@ -369,7 +348,7 @@
    "description": "Max characters for inline validation errors (link checks, mandatory checks)."
   },
   {
-   "fieldname": "limits_list_section",
+   "fieldname": "lim_list_section",
    "fieldtype": "Section Break",
    "label": "List & Query Limits",
    "description": "Controls how many records are returned by read operations",
@@ -384,7 +363,7 @@
    "description": "Hard cap for list_documents tool — even if the model requests more."
   },
   {
-   "fieldname": "cb_list_1",
+   "fieldname": "lim_cb_list_1",
    "fieldtype": "Column Break"
   },
   {
@@ -396,9 +375,8 @@
    "description": "Default limit when the model does not specify a limit."
   },
   {
-   "fieldname": "sb_list_2",
-   "fieldtype": "Section Break",
-   "hide_border": 0
+   "fieldname": "lim_cb_list_2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "client_get_list_default",
@@ -409,7 +387,7 @@
    "description": "Default limit for internal client.get_list calls not triggered by the model directly."
   },
   {
-   "fieldname": "cb_list_2",
+   "fieldname": "lim_cb_list_3",
    "fieldtype": "Column Break"
   },
   {
@@ -421,9 +399,8 @@
    "description": "Max Custom Fields and Property Setters returned per query."
   },
   {
-   "fieldname": "sb_list_3",
-   "fieldtype": "Section Break",
-   "hide_border": 0
+   "fieldname": "lim_cb_list_4",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "diagnose_permissions_limit",
@@ -434,7 +411,7 @@
    "description": "Max roles and permission rules returned per query."
   },
   {
-   "fieldname": "cb_list_3",
+   "fieldname": "lim_cb_list_5",
    "fieldtype": "Column Break"
   },
   {
@@ -446,7 +423,7 @@
    "description": "Max client sites returned by list_client_sites tool."
   },
   {
-   "fieldname": "limits_search_section",
+   "fieldname": "lim_search_section",
    "fieldtype": "Section Break",
    "label": "Search Limits",
    "description": "Controls search result counts",
@@ -461,7 +438,7 @@
    "description": "Max matches returned when searching for a document by filters."
   },
   {
-   "fieldname": "cb_search_1",
+   "fieldname": "lim_cb_search_1",
    "fieldtype": "Column Break"
   },
   {
@@ -473,9 +450,8 @@
    "description": "Max past tasks returned by search_past_tasks tool."
   },
   {
-   "fieldname": "sb_search_2",
-   "fieldtype": "Section Break",
-   "hide_border": 0
+   "fieldname": "lim_cb_search_2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "search_templates_limit",
@@ -486,7 +462,7 @@
    "description": "Max templates returned by search_templates tool."
   },
   {
-   "fieldname": "cb_search_2",
+   "fieldname": "lim_cb_search_3",
    "fieldtype": "Column Break"
   },
   {
@@ -498,9 +474,8 @@
    "description": "Max available artifacts shown in capture/template listing."
   },
   {
-   "fieldname": "sb_search_3",
-   "fieldtype": "Section Break",
-   "hide_border": 0
+   "fieldname": "lim_cb_search_4",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "list_artifact_types_limit",
@@ -511,7 +486,7 @@
    "description": "Max DocTypes returned when listing all available artifact types."
   },
   {
-   "fieldname": "limits_options_section",
+   "fieldname": "lim_options_section",
    "fieldtype": "Section Break",
    "label": "Options Display",
    "description": "Controls how many options are shown for Link and Select fields",
@@ -526,7 +501,7 @@
    "description": "Max options returned for a Link field (e.g. Item Group, Warehouse)."
   },
   {
-   "fieldname": "cb_options_1",
+   "fieldname": "lim_cb_options_1",
    "fieldtype": "Column Break"
   },
   {
@@ -538,9 +513,8 @@
    "description": "Max options displayed inline when a Link field value is invalid."
   },
   {
-   "fieldname": "sb_options_2",
-   "fieldtype": "Section Break",
-   "hide_border": 0
+   "fieldname": "lim_cb_options_2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "select_options_shown",
@@ -549,6 +523,95 @@
    "default": "15",
    "non_negative": 1,
    "description": "Max Select field choices displayed inline in validation messages."
+  },
+  {
+   "fieldname": "lim_attachment_section",
+   "fieldtype": "Section Break",
+   "label": "Attachment Reading Limits",
+   "description": "Controls how much file content is sent to the model via chat attachments",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "max_rows_per_sheet",
+   "fieldtype": "Int",
+   "label": "Max Rows per Sheet",
+   "default": "200",
+   "non_negative": 1,
+   "description": "Max rows read from Excel/CSV attachments in chat. The import tool processes the full file without this limit."
+  },
+  {
+   "fieldname": "lim_cb_attach_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_text_chars",
+   "fieldtype": "Int",
+   "label": "Max File Content Characters",
+   "default": "30000",
+   "non_negative": 1,
+   "description": "Max characters read from text file attachments in chat."
+  },
+  {
+   "fieldname": "lim_import_section",
+   "fieldtype": "Section Break",
+   "label": "Remote Import Limits",
+   "description": "Controls batch size, timeout, and approval thresholds for Remote Import",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "default_batch_size",
+   "fieldtype": "Int",
+   "label": "Default Batch Size",
+   "default": "200",
+   "non_negative": 1,
+   "description": "Default number of rows per batch in Remote Import."
+  },
+  {
+   "fieldname": "lim_cb_import_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "import_timeout",
+   "fieldtype": "Int",
+   "label": "Import Timeout (seconds)",
+   "default": "7200",
+   "non_negative": 1,
+   "description": "Maximum time for a background import job."
+  },
+  {
+   "fieldname": "lim_cb_import_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_import_rows",
+   "fieldtype": "Int",
+   "label": "Max Rows per Import",
+   "default": "100000",
+   "non_negative": 1,
+   "description": "Maximum rows allowed in a single import. Set 0 for unlimited."
+  },
+  {
+   "fieldname": "lim_cb_import_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "require_approval_large_import",
+   "fieldtype": "Check",
+   "label": "Require Approval for Large Imports",
+   "default": "0",
+   "description": "Create an AI Task for approval when import exceeds threshold."
+  },
+  {
+   "fieldname": "lim_cb_import_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "large_import_threshold",
+   "fieldtype": "Int",
+   "label": "Large Import Threshold (rows)",
+   "default": "5000",
+   "non_negative": 1,
+   "description": "Row count above which import requires approval."
   }
  ],
  "issingle": 1,

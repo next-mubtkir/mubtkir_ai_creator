@@ -297,7 +297,18 @@ def _do_insert(client, doctype, data, import_doc):
     # Handle attachment fields before insert
     if import_doc.import_attachments:
         data = _process_attachments(data, import_doc.client_site, doctype, None)
-    resp = client.create_doc(doctype, data)
+    ignore_mandatory = bool(getattr(import_doc, "ignore_mandatory", 0))
+    ignore_links = bool(getattr(import_doc, "ignore_link_validation", 0))
+    if ignore_mandatory or ignore_links:
+        # frappe.client.insert path — mimics manual save and honours the
+        # ignore flags so rows the server would otherwise reject go through.
+        resp = client.insert_doc(
+            doctype, data,
+            ignore_mandatory=ignore_mandatory,
+            ignore_links=ignore_links,
+        )
+    else:
+        resp = client.create_doc(doctype, data)
     new_name = resp.get("data", {}).get("name")
     # Upload attachments after insert if needed (for Attach fields with local paths)
     if import_doc.import_attachments and new_name:
@@ -324,7 +335,16 @@ def _do_insert_if_missing(client, doctype, data, import_doc):
         except Exception:
             pass  # Doesn't exist, proceed with insert
     data.pop("name", None)
-    client.create_doc(doctype, data)
+    ignore_mandatory = bool(getattr(import_doc, "ignore_mandatory", 0))
+    ignore_links = bool(getattr(import_doc, "ignore_link_validation", 0))
+    if ignore_mandatory or ignore_links:
+        client.insert_doc(
+            doctype, data,
+            ignore_mandatory=ignore_mandatory,
+            ignore_links=ignore_links,
+        )
+    else:
+        client.create_doc(doctype, data)
 
 
 def _do_update_if_exists(client, doctype, data, import_doc):

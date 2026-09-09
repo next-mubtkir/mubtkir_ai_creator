@@ -86,6 +86,21 @@ class FrappeSiteClient:
     def create_doc(self, doctype, data):
         return self._request("POST", f"/api/resource/{doctype}", data=data)
 
+    def insert_doc(self, doctype, data, ignore_mandatory=False, ignore_links=False):
+        """إدراج مستند عبر frappe.client.insert — يحاكي الحفظ اليدوي بدقة.
+
+        على عكس POST /api/resource، هذا المسار يمرّ بدورة insert الكاملة على
+        السيرفر البعيد (autoname / before_insert / defaults / validate) ويسمح
+        بتمرير أعلام التجاوز، تمامًا كسلوك حفظ مستند يدويًا من الواجهة.
+        """
+        doc = dict(data)
+        doc["doctype"] = doctype
+        if ignore_mandatory:
+            doc["__ignore_mandatory"] = 1
+        if ignore_links:
+            doc["__ignore_links"] = 1
+        return self.call_method("frappe.client.insert", {"doc": json.dumps(doc, ensure_ascii=False)})
+
     def update_doc(self, doctype, name, data):
         return self._request("PUT", f"/api/resource/{doctype}/{name}", data=data)
 

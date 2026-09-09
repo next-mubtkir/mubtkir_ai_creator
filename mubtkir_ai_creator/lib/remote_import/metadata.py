@@ -32,6 +32,13 @@ def get_doctype_meta(client_site, doctype):
     translations = _fetch_translations(client, doctype, data.get("fields", []))
 
     fields = data.get("fields", [])
+
+    # Merge Custom Fields — get_meta on /api/resource/DocType returns only the
+    # DocType's own DocField rows, NOT Custom Fields (stored in a separate
+    # "Custom Field" doctype). Without this, manually-added custom fields and
+    # app-added custom fields never appear in the import mapping list.
+    fields = _merge_custom_fields(client, doctype, fields)
+
     parent_fields = []
     child_tables = {}
 
@@ -109,6 +116,51 @@ _SKIPPED_FIELDTYPES = {
     "Section Break", "Column Break", "Tab Break", "Fold",
     "Heading", "HTML", "Button", "Image",
 }
+
+
+def _merge_custom_fields(client, doctype, fields):
+    """Append Custom Fields (dt=doctype) that are missing from get_meta output.
+
+    get_meta via /api/resource/DocType returns only standard DocField rows.
+    Custom Fields live in the "Custom Field" doctype and are otherwise invisible
+    to the import mapping. This queries them directly and merges any not already
+    present (matched by fieldname), preserving the original field order.
+
+    Best-effort: if the query fails, the original fields are returned unchanged.
+    """
+    seen = {f.get("fieldname") for f in fields if f.get("fieldname")}
+    try:
+        resp = client.get_list(
+            "Custom Field",
+            fields=[
+                "fieldname", "fieldtype", "label", "reqd", "options",
+                "default", "mandatory_depends_on", "in_list_view",
+            ],
+            filters=[["dt", "=", doctype]],
+            limit=0,
+            order_by="idx asc",
+        )
+        custom = resp.get("data", []) if isinstance(resp, dict) else (resp or [])
+        for cf in custom:
+            fn = cf.get("fieldname")
+            if not fn or fn in seen:
+                continue
+            seen.add(fn)
+            fields.append({
+                "fieldname": fn,
+                "fieldtype": cf.get("fieldtype"),
+                "label": cf.get("label"),
+                "reqd": cf.get("reqd", 0),
+                "mandatory_depends_on": cf.get("mandatory_depends_on", ""),
+                "options": cf.get("options"),
+                "default": cf.get("default"),
+                "in_list_view": cf.get("in_list_view", 0),
+                "is_custom_field": 1,
+            })
+    except Exception:
+        # Best-effort — never break metadata discovery over custom-field merge
+        pass
+    return fields
 
 
 def _fetch_child_fields(client, child_dt):

@@ -217,3 +217,62 @@ def transcribe_audio():
         frappe.throw("لم يتم إرسال أي ملف صوتي")
 
     return {"text": transcribe(file.read(), file.filename or "audio.webm", file.mimetype or "audio/webm")}
+
+@frappe.whitelist()
+def get_item_invoices(item_code, include_cancelled=0, limit=200):
+    """ترجع أرقام فواتير المبيعات والمشتريات التي ظهر فيها صنف معيّن."""
+    frappe.only_for(["System Manager", "AI Creator User", "AI Creator Supervisor"])
+
+    if not item_code:
+        frappe.throw("item_code مطلوب")
+
+    limit = int(limit)
+    docstatus_filter = "(0, 1)" if int(include_cancelled) else "(1)"
+
+    sales = frappe.db.sql(
+        f"""
+        SELECT
+            si.name         AS name,
+            si.posting_date AS posting_date,
+            si.customer     AS customer,
+            SUM(sii.qty)    AS qty,
+            SUM(sii.amount) AS amount
+        FROM `tabSales Invoice Item` sii
+        INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+        WHERE sii.item_code = %(item_code)s
+          AND si.docstatus IN {docstatus_filter}
+        GROUP BY si.name, si.posting_date, si.customer
+        ORDER BY si.posting_date DESC
+        LIMIT %(limit)s
+        """,
+        {"item_code": item_code, "limit": limit},
+        as_dict=True,
+    )
+
+    purchases = frappe.db.sql(
+        f"""
+        SELECT
+            pi.name         AS name,
+            pi.posting_date AS posting_date,
+            pi.supplier     AS supplier,
+            SUM(pii.qty)    AS qty,
+            SUM(pii.amount) AS amount
+        FROM `tabPurchase Invoice Item` pii
+        INNER JOIN `tabPurchase Invoice` pi ON pi.name = pii.parent
+        WHERE pii.item_code = %(item_code)s
+          AND pi.docstatus IN {docstatus_filter}
+        GROUP BY pi.name, pi.posting_date, pi.supplier
+        ORDER BY pi.posting_date DESC
+        LIMIT %(limit)s
+        """,
+        {"item_code": item_code, "limit": limit},
+        as_dict=True,
+    )
+
+    return {
+        "item_code": item_code,
+        "sales_invoices": sales,
+        "purchase_invoices": purchases,
+        "sales_count": len(sales),
+        "purchase_count": len(purchases),
+    }

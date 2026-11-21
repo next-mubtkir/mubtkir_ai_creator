@@ -1,3 +1,21 @@
+<!-- MUBTKIR-UNIFIED-README-START -->
+## منشئ ومساعد مبتكر بالذكاء الاصطناعي | Mubtkir AI Creator
+
+منصة مركزية بالذكاء الاصطناعي لإدارة ودعم وتخصيص حسابات ERPNext للعملاء عبر API.
+* **الفئة المستهدفة:** شركات الدعم التقني ومزودي خدمات ERPNext السحابية.
+
+Centralized AI-powered platform for managing, supporting, and customizing client ERPNext instances via API.
+* **Target Audience:** ERPNext service providers, cloud hosting teams, and technical support.
+
+### تواصل معنا | Contact & Sales — [مبتكر للأنظمة السحابية | Mubtkir ERP](https://mubtkir.com)
+
+* 🌐 **الموقع الرسمي | Website:** [Mubtkir ERP — حلول ERPNext السحابية](https://mubtkir.com)
+* 📧 **البريد الإلكتروني | Email:** [sales@mubtkir.com](mailto:sales@mubtkir.com)
+* 📱 **الجوال | Mobile:** [+966547706865](tel:+966547706865)
+* 💬 **واتساب | WhatsApp:** [+966126810486](https://wa.me/966126810486)
+
+<!-- MUBTKIR-UNIFIED-README-END -->
+
 # Mubtkir AI Creator
 
 تطبيق Frappe يعمل داخل حساب Mubtkir كـ«خبير ERPNext آلي مركزي»: الموظف يختار عميلًا، يعطي أمرًا بالعربية، والوكيل يقرأ حساب العميل الفعلي عبر REST API، يبني خطة، يعرضها، وينفذ بعد الموافقة ثم يتحقق ويسجل كل شيء.
